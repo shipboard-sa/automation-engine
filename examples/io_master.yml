@@ -1,0 +1,53 @@
+# I/O Master — Modbus module and channel definitions
+#
+# Each module has an address on the RTU bus and a list of channels.
+# Each channel has a function name (used in rules), a class, and a state.
+#
+# Classes:
+#   MONITOR  — read-only input, no relay writes
+#   ASSIST   — automation can write this relay (crew convenience)
+#   PROTECT  — safety relay, requires manual clear after activation
+#
+# Fail-safe:
+#   NC  — normally closed: de-energise to activate (dead computer = safe)
+#   NO  — normally open: energise to activate
+
+modules:
+  S1:
+    model: Waveshare 8DI
+    address: 4
+    channels:
+      - {pin: DI1, function: high_water_salon,    class: MONITOR, state: live}
+      - {pin: DI2, function: high_water_bow,      class: MONITOR, state: live}
+      - {pin: DI3, function: high_water_engine,    class: MONITOR, state: verified}
+      - {pin: DI4, function: bilge_pump_running,   class: MONITOR, state: live}
+      - {pin: DI5, function: shore_power_sense,    class: MONITOR, state: live}
+      - {pin: DI6, function: raw_water_flow,       class: MONITOR, state: live}
+      - {pin: DI7, function: fire_heat_detector,   class: MONITOR, state: live}
+      - {pin: DI8, function: fire_smoke_detector,  class: MONITOR, state: live}
+
+  S2:
+    model: Waveshare 8DI
+    address: 2
+    channels:
+      - {pin: DI1, function: dinghy_loop,          class: MONITOR, state: live}
+      - {pin: DI2, function: ais_silent_switch,    class: MONITOR, state: live}
+
+  S3:
+    model: Waveshare 8CH-relay
+    address: 3
+    channels:
+      - {pin: R1, function: engine_stop,           class: PROTECT, state: verified, fail_safe: NC}
+      - {pin: R2, function: genset_stop,           class: PROTECT, state: unverified, fail_safe: NC}
+      - {pin: R3, function: heartbeat,             class: MONITOR, state: live, fail_safe: NO}
+      - {pin: R4, function: horns,                 class: ASSIST,  state: live, fail_safe: NO}
+      - {pin: R5, function: water_heater_enable,   class: ASSIST,  state: live, fail_safe: NC}
+      - {pin: R6, function: ok_to_discharge,       class: ASSIST,  state: live, fail_safe: NC}
+      - {pin: R7, function: blower_enable,         class: ASSIST,  state: live, fail_safe: NO}
+      - {pin: R8, function: spare_relay,           class: MONITOR, state: unverified, fail_safe: NO}
+
+  S4:
+    model: Waveshare 8DI
+    address: 1
+    channels:
+      - {pin: DI1, function: engine_room_temp_high, class: MONITOR, state: unverified}

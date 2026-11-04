@@ -1,0 +1,92 @@
+# Signal catalog — every named signal the engine can reference
+#
+# source: adapter that provides it
+# path:   adapter-specific address (SignalK path, MQTT topic, etc.)
+# rate:   expected update interval
+# max_age: seconds before the signal is marked STALE
+
+sk:
+  engine_rpm:
+    source: signalk
+    path: propulsion.port.revolutions
+    rate: 1s
+    max_age: 10
+
+  sog:
+    source: signalk
+    path: navigation.speedOverGround
+    rate: 1s
+    max_age: 30
+
+  depth_below_keel:
+    source: signalk
+    path: environment.depth.belowKeel
+    rate: 1s
+    max_age: 60
+
+  wind_speed_apparent:
+    source: signalk
+    path: environment.wind.speedApparent
+    rate: 1s
+    max_age: 30
+
+  oil_pressure:
+    source: signalk
+    path: propulsion.port.oilPressure
+    rate: 1s
+    max_age: 10
+
+  coolant_temp:
+    source: signalk
+    path: propulsion.port.coolantTemperature
+    rate: 5s
+    max_age: 30
+
+  barometric_pressure:
+    source: signalk
+    path: environment.outside.pressure
+    rate: 60s
+    max_age: 300
+
+  roll:
+    source: signalk
+    path: navigation.attitude
+    part: roll
+    rate: 1s
+    max_age: 10
+
+cerbo:
+  house_soc:
+    source: cerbo_read
+    topic: battery/house/Soc
+    rate: 5s
+    max_age: 60
+
+  ac_in_connected:
+    source: cerbo_read
+    topic: vebus/Ac/ActiveIn/Connected
+    rate: 10s
+    max_age: 60
+
+  inverter_load_pct:
+    source: cerbo_read
+    topic: vebus/Ac/Out/P
+    rate: 5s
+    max_age: 30
+
+io:
+  high_water_salon:    {source: modbus_bus}
+  high_water_bow:      {source: modbus_bus}
+  high_water_engine:   {source: modbus_bus}
+  bilge_pump_running:  {source: modbus_bus}
+  shore_power_sense:   {source: modbus_bus}
+  raw_water_flow:      {source: modbus_bus}
+  fire_heat_detector:  {source: modbus_bus}
+  fire_smoke_detector: {source: modbus_bus}
+  dinghy_loop:         {source: modbus_bus}
+  ais_silent_switch:   {source: modbus_bus}
+
+ssm:
+  packs: [house_1, house_2, house_3, starter_1, starter_2, bow_thruster]
+  fields: [soc, voltage, current, cell_min_v, cell_max_v, cell_min_t, cell_max_t]
+  max_age: 30

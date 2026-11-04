@@ -1,0 +1,118 @@
+# Example rules — alarm and automation behaviours
+#
+# Every rule starts in dry_run mode (log only, no relay writes).
+# Promote to live after testing.
+
+# --- Safety (WF-1xx) ---
+
+- id: WF-101
+  mode: dry_run
+  if: {any: [{io.high_water_salon: {is: true}}, {io.high_water_bow: {is: true}}]}
+  do:
+    alarm: {severity: EMERGENCY}
+    message:
+      choose:
+        - if: {io.bilge_pump_running: {is: true}}
+          text: "EMERGENCY High water - pump running, being overwhelmed"
+        - text: "EMERGENCY High water - pump NOT running, check pump / breaker"
+  purpose: "Bilge high-water float switch"
+
+- id: WF-007
+  mode: dry_run
+  if: {active: WF-101}
+  do:
+    inhibits: [WF-201, WF-202, io.ok_to_discharge]
+    set: {io.water_heater_enable: off}
+    alarm: {severity: NOTICE}
+    message: "High water - non-essential loads switched off"
+  purpose: "Lockout: high water takes priority over everything else"
+
+- id: WF-102
+  mode: dry_run
+  if: {any: [{io.fire_heat_detector: {is: true}}, {io.fire_smoke_detector: {is: true}}]}
+  do:
+    alarm: {severity: EMERGENCY}
+    set: {io.engine_stop: on}
+    message: "FIRE DETECTED - engine stopped"
+  clear: manual
+  purpose: "Fire detection shuts down the engine"
+
+# --- Propulsion (WF-2xx) ---
+
+- id: WF-201
+  mode: dry_run
+  when: {sk.engine_rpm: {above: 500, for: 30s}}
+  if:   {io.raw_water_flow: {is: false, for: 15s}}
+  do:
+    alarm: {severity: EMERGENCY}
+    message: "EMERGENCY Raw-water flow lost - check strainer / impeller; engine stops in 15 s unless acked"
+    after_unacked: {in: 15s, do: {set: {io.engine_stop: on}}}
+  inhibited_by: [WF-007]
+  clear: manual
+  purpose: "Ack-or-kill: no cooling water while engine running"
+
+- id: WF-215
+  mode: dry_run
+  when: {sk.engine_rpm: {above: 300, for: 5s}}
+  if:   {io.blower_enable: {is: false}}
+  do:
+    set: {io.blower_enable: on}
+    alarm: {severity: LOG}
+    message: "Engine room blower enabled"
+  clear: auto
+  purpose: "Run engine room ventilation while engine is running"
+
+# --- Energy (WF-3xx) ---
+
+- id: WF-305
+  mode: dry_run
+  if: {cerbo.house_soc: {below: 20, clear_at: 25, for: 5m}}
+  do:
+    alarm: {severity: NOTICE}
+    message: "House bank {cerbo.house_soc:.0f}%"
+  inhibited_by: [WF-007]
+  purpose: "Low state of charge warning"
+
+- id: WF-305-EMRG
+  mode: dry_run
+  if: {cerbo.house_soc: {below: 15, clear_at: 18, for: 2m}}
+  do:
+    alarm: {severity: EMERGENCY}
+    message: "EMERGENCY House bank critically low {cerbo.house_soc:.0f}%"
+  purpose: "Critical low SoC — needs immediate attention"
+
+- id: WF-306
+  mode: dry_run
+  if: {cerbo.inverter_load_pct: {above: 3000, clear_at: 2500, for: 30s}}
+  do:
+    set: {io.water_heater_enable: off}
+    alarm: {severity: ALARM}
+    message: "Inverter overloaded - water heater shed"
+  purpose: "Shed large loads when inverter is near capacity"
+
+# --- Navigation (WF-6xx) ---
+
+- id: WF-601-BARO
+  mode: dry_run
+  if: {sk.barometric_pressure: {fall: {by: 3, within: 3h}}}
+  do:
+    alarm: {severity: NOTICE}
+    message: "Barometer falling {sk.barometric_pressure:.0f} hPa"
+  purpose: "Rapid pressure drop may indicate approaching weather"
+
+- id: WF-601-DEPTH
+  mode: dry_run
+  when: {mode: {in: [ANCHOR]}}
+  if: {sk.depth_below_keel: {below: 1.5, clear_at: 2.0, for: 10s}}
+  do:
+    alarm: {severity: ALARM}
+    message: "Shallow water {sk.depth_below_keel:.1f}m under keel"
+  purpose: "Depth alarm at anchor"
+
+- id: WF-316
+  mode: dry_run
+  if: {ssm.any.voltage: {stale: 60s}}
+  do:
+    alarm: {severity: NOTICE}
+    message: "Battery telemetry stale - check RS-485 bus"
+  purpose: "Battery management system health check"

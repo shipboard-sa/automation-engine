@@ -1,0 +1,73 @@
+# Engine configuration — built-in behaviours and integration settings
+
+heartbeat:
+  output: io.heartbeat
+  period: 5s
+  pulse: 1s
+  requires:
+    - modbus_bus
+    - signalk
+
+mode:
+  signals:
+    rpm: sk.engine_rpm
+    sog: sk.sog
+    shore_power: cerbo.ac_in_connected
+  thresholds:
+    motor_sog: 1.0
+    sail_sog: 1.5
+    stationary_sog: 0.3
+    motor_rpm: 300
+
+annunciation:
+  horn_output: io.horns
+  sound_on: [EMERGENCY, ALARM]
+
+call_home:
+  service: pushover
+  recipients:
+    - name: owner
+      severities: [EMERGENCY, ALARM, NOTICE]
+    - name: crew
+      severities: [EMERGENCY, ALARM]
+  emergency:
+    retry: 30s
+    expire: 5m
+
+modbus:
+  transport: tcp
+  host: "192.168.1.10"
+  port: 502
+  baud: 9600
+  addresses:
+    S1: 4
+    S2: 2
+    S3: 3
+    S4: 1
+  write_protect: []
+
+safe_start:
+  silent_is_stopped:
+    signal: sk.engine_rpm
+    witness: signalk
+
+forward:
+  - id: WF-204-OIL
+    match: notifications.propulsion.port.lowOilPressure
+    states: {alarm: EMERGENCY, emergency: EMERGENCY, warn: ALARM}
+    when: {sk.engine_rpm: {above: 400, for: 10s}}
+    message: "LOW OIL PRESSURE - stop the engine"
+    mode: dry_run
+
+  - id: WF-204-TEMP
+    match: notifications.propulsion.port.highCoolantTemperature
+    states: {alarm: EMERGENCY, emergency: EMERGENCY, warn: ALARM}
+    when: {sk.engine_rpm: {above: 400, for: 10s}}
+    message: "HIGH COOLANT TEMPERATURE - stop the engine"
+    mode: dry_run
+
+  - id: WF-610
+    match: notifications.navigation.*
+    states: {alert: NOTICE, warn: NOTICE, alarm: ALARM, emergency: EMERGENCY}
+    message: "Navigation alert: {match}"
+    mode: dry_run
