@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your Router Already Knows Who's Aboard</title>
+<style>
+  /* Palette: deep navy, warm white, sea-glass accent — a technical-marine feel */
+  :root {
+    --bg: #fafaf8;
+    --fg: #1a1a2e;
+    --muted: #5c5c70;
+    --accent: #2a7f8e;
+    --accent-light: #e4f2f4;
+    --border: #d4d4d8;
+    --code-bg: #f0f0ee;
+    --block-bg: #f5f5f2;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161622;
+      --fg: #e4e4e8;
+      --muted: #9a9ab0;
+      --accent: #4ec4d4;
+      --accent-light: #1e2e32;
+      --border: #2e2e40;
+      --code-bg: #1e1e2e;
+      --block-bg: #1c1c2c;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161622;
+    --fg: #e4e4e8;
+    --muted: #9a9ab0;
+    --accent: #4ec4d4;
+    --accent-light: #1e2e32;
+    --border: #2e2e40;
+    --code-bg: #1e1e2e;
+    --block-bg: #1c1c2c;
+    color-scheme: dark;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { font-size: 17px; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Source Serif 4', 'Georgia', serif;
+    line-height: 1.72;
+    padding: 2.5rem 1.25rem 4rem;
+    max-width: 42rem;
+    margin: 0 auto;
+  }
+
+  /* — type — */
+  h1 {
+    font-family: 'Inter', 'Helvetica Neue', sans-serif;
+    font-size: 1.85rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin-bottom: 0.4rem;
+  }
+  h2 {
+    font-family: 'Inter', 'Helvetica Neue', sans-serif;
+    font-size: 1.15rem;
+    font-weight: 650;
+    line-height: 1.3;
+    text-wrap: balance;
+    margin-top: 2.4rem;
+    margin-bottom: 0.6rem;
+    color: var(--accent);
+  }
+  p { margin-bottom: 1rem; }
+  .byline {
+    font-family: 'Inter', 'Helvetica Neue', sans-serif;
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-bottom: 2rem;
+  }
+  .lede {
+    font-size: 1.1rem;
+    color: var(--muted);
+    border-left: 3px solid var(--accent);
+    padding-left: 1rem;
+    margin-bottom: 1.8rem;
+  }
+  strong { font-weight: 650; }
+  em { font-style: italic; }
+
+  /* — code — */
+  code {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.84em;
+    background: var(--code-bg);
+    padding: 0.12em 0.35em;
+    border-radius: 3px;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem 1.2rem;
+    overflow-x: auto;
+    margin-bottom: 1.2rem;
+    line-height: 1.55;
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    font-size: 0.82rem;
+  }
+
+  /* — callout box — */
+  .callout {
+    background: var(--accent-light);
+    border-left: 3px solid var(--accent);
+    padding: 0.9rem 1.1rem;
+    border-radius: 4px;
+    margin-bottom: 1.2rem;
+    font-size: 0.94rem;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+
+  /* — diagram placeholder — */
+  .diagram-placeholder {
+    background: var(--block-bg);
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    padding: 1.8rem 1.2rem;
+    text-align: center;
+    color: var(--muted);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    margin-bottom: 1.4rem;
+  }
+
+  /* — lists — */
+  ul, ol { margin-left: 1.4rem; margin-bottom: 1rem; }
+  li { margin-bottom: 0.35rem; }
+
+  /* — table — */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1.4rem;
+    font-size: 0.92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.5rem 0.7rem;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 0.84rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  /* — footer — */
+  .footer {
+    margin-top: 3rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.82rem;
+    color: var(--muted);
+    font-family: 'Inter', sans-serif;
+  }
+
+  @media (max-width: 480px) {
+    html { font-size: 16px; }
+    body { padding: 1.5rem 1rem 3rem; }
+    h1 { font-size: 1.5rem; }
+  }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<h1>Your Router Already Knows Who's Aboard</h1>
+<p class="byline">Lee Hutchins and Claude &middot; SV Unladen Swallow 2 &middot; November 2026</p>
+
+<p class="lede">Presence awareness is one of the most useful signals a boat automation system can have. Your Wi-Fi router already tracks every connected device. One authenticated API call gives you a reliable aboard/ashore boolean for each crew phone&nbsp;&mdash; and that boolean gates security rules that would otherwise need manual arming.</p>
+
+<h2>What Presence Awareness Enables</h2>
+
+<p>A sailboat at a dock or on the hook faces a basic question: is anyone aboard right now? The answer unlocks a tier of automatic behavior that would be intrusive or unsafe without it:</p>
+
+<ul>
+  <li><strong>Away deterrents.</strong> Nobody aboard for ten minutes &rarr; cameras arm, a greeting plays if someone steps onto the stern. The slip fence and anchor watch stay armed independently (they follow the mode tap, not presence), but the <em>response</em> escalates when nobody is there to respond in person.</li>
+  <li><strong>Doorbell.</strong> Crew aboard during the day, someone on the stern &rarr; a quiet notification and a snapshot, not a siren. If the companionway is closed and the A/C running, you cannot hear someone calling from the dock. Presence plus mode plus time of day picks the right response.</li>
+  <li><strong>Anchor-box gate.</strong> The touchscreen anchor box can tap DOCK and MOTOR, but it cannot end a secured mode (DOCK&nbsp;&rarr;&nbsp;another, or ANCHOR&nbsp;&rarr;&nbsp;another) unless a crew phone is aboard. The box has no PIN; presence stands in for it. Without this gate, a stranger at the nav station could silence the theft fence.</li>
+  <li><strong>Night-watch escalation.</strong> Crew aboard, night watch armed, intruder on the stern &rarr; EMERGENCY. Presence confirms you are asleep, not ashore.</li>
+</ul>
+
+<p>Presence and mode are <strong>separate axes.</strong> Walking up the dock to the chandlery does not change the boat from DOCK to AWAY, so the slip fence stays armed while the away deterrents arm on top. Returning does not disarm anything either&nbsp;&mdash;&nbsp;it just ends the away state. Each axis does its own job.</p>
+
+<div class="callout">
+  <p><strong>What presence does not gate:</strong> the dinghy alarm loop is armed only by its own physical switch, never by presence or mode. Ashore, the dinghy is usually how you got there&nbsp;&mdash;&nbsp;there is nothing on the loop to guard.</p>
+</div>
+
+<h2>The Signal</h2>
+
+<p>Each crew member's phone produces one boolean signal: <code>crew.lee_cell</code>, <code>crew.brownie_cell</code>. The rules engine checks it every 30 seconds. A phone that answered within the last ten minutes reads <strong>True</strong> (aboard). One that has not answered in ten minutes reads <strong>False</strong> (ashore). For the first ten minutes after the engine starts, the signal is <strong>Unknown</strong>&nbsp;&mdash;&nbsp;treated as not-aboard so that a restart does not briefly drop the away deterrents.</p>
+
+<p>The ten-minute window exists because phones doze. A modern phone in a pocket or on a charger may not respond to every probe. The window is long enough that at least one successful check lands during a normal doze cycle, but short enough that presence tracks reality within a reasonable delay.</p>
+
+<p><strong>Limits the crew accepts:</strong> Wi-Fi reaches the dock, so a phone at the marina office counts as aboard. A phone left on the charger while you take the dinghy ashore counts as aboard. A dead phone or one with Wi-Fi off reads as ashore. These are known trade-offs&nbsp;&mdash;&nbsp;the signal is useful, not perfect.</p>
+
+<h2>How to Get It</h2>
+
+<p>Every Wi-Fi router tracks connected clients. The question is whether yours exposes that list through an API. <strong>If you are running the stock Starlink router</strong>&nbsp;&mdash;&nbsp;and most cruisers are&nbsp;&mdash;&nbsp;you are in good shape. The Starlink router exposes a gRPC API at <code>192.168.1.1:9000</code> with a <code>WifiGetClients</code> method that returns every connected device including its IP address, MAC address, and an <code>active</code> flag. That is everything the presence pattern needs. We have not tested it ourselves (our Starlink runs in bypass mode behind a GL.iNet), but the protobuf definitions in the open-source <code>starlink-client</code> library confirm the fields are there. If you run a third-party router behind Starlink in bypass mode (typically for a boat-level VPN or cellular failover), your router&rsquo;s own API applies instead.</p>
+
+<p>If your router does expose a client list, the pattern is simple:</p>
+
+<ol>
+  <li><strong>Reserve each phone's IP via DHCP.</strong> Most router admin pages have a DHCP reservation list: tie each phone's MAC address to a fixed IP. This makes the phone identifiable by IP rather than by MAC, which is important because modern phones randomize their MAC address by default.</li>
+  <li><strong>Authenticate to the router's API.</strong> This varies by router. Some use a session cookie, some use bearer tokens, some use challenge-response. You need the admin password.</li>
+  <li><strong>Call the client-list endpoint.</strong> One call returns every connected device with at least an IP and an online/offline flag.</li>
+  <li><strong>Match by IP.</strong> If the phone's reserved IP appears with <code>online: true</code>, mark it as seen. Apply the window logic.</li>
+</ol>
+
+<p>If your router does not expose an API, or the password is not available, the fallback is the ARP table: read <code>/proc/net/arp</code> on a Linux host and send a UDP probe to each phone's discard port (port&nbsp;9) to force an ARP resolution. This works but is less reliable for dozing phones, because the kernel's ARP cache expires entries that do not answer the probe.</p>
+
+<div class="diagram-placeholder">[Diagram: signal flow &mdash; router API call &rarr; IP match &rarr; last-seen timestamp &rarr; window check &rarr; crew.* boolean &rarr; rules engine]</div>
+
+<h2>Worked Example: GL-X3000</h2>
+
+<p>The GL.iNet GL-X3000 (Spitz AX, firmware 4.x) exposes a JSON-RPC API over HTTPS on port 443. Authentication is challenge-response: the router sends a salt and nonce, the client computes a hash, and the router returns a session ID.</p>
+
+<pre><code># 1. Request a challenge
+POST https://192.168.8.1/rpc
+{
+  "jsonrpc": "2.0", "id": 1,
+  "method": "challenge",
+  "params": {"username": "root"}
+}
+# Response: {"result": {"alg": 5, "salt": "...", "nonce": "..."}}
+
+# 2. Compute the login hash
+hashed  = crypt(password, "$5$" + salt)   # SHA-256 unix crypt
+payload = username + ":" + hashed + ":" + nonce
+hash    = sha256(payload)
+
+# 3. Log in
+POST /rpc
+{
+  "jsonrpc": "2.0", "id": 2,
+  "method": "login",
+  "params": {"username": "root", "hash": "&lt;computed&gt;"}
+}
+# Response: {"result": {"sid": "abc123..."}}
+
+# 4. Fetch the client list
+POST /rpc
+{
+  "jsonrpc": "2.0", "id": 3,
+  "method": "call",
+  "params": ["abc123...", "clients", "get_list", {}]
+}
+# Response: {"result": {"clients": [
+#   {"name": "Lee-iPhone", "ip": "192.168.8.50",
+#    "mac": "aa:bb:cc:dd:ee:ff", "online": true},
+#   ...
+# ]}}</code></pre>
+
+<p>The session ID is valid for about an hour. If a call returns error code <code>-32000</code>, the session expired; re-authenticate and retry. The <code>clients.get_list</code> call returns every device the router has seen, with <code>online: true</code> for those currently connected. Match each client's <code>ip</code> against your crew list. One call covers all phones&nbsp;&mdash;&nbsp;no per-device polling.</p>
+
+<div class="callout">
+  <p><strong>Firmware note:</strong> on the GL-X3000 firmware we tested, <code>clients.get_list</code> was the only working client-list endpoint out of twelve we tried. Others returned <code>-32601</code> (method not found). If your GL.iNet model behaves differently, try <code>clients.get_list</code> first.</p>
+</div>
+
+<h2>Adapt to Your Router</h2>
+
+<p>The pattern is the same regardless of router. The authentication and endpoint change; the presence logic does not.</p>
+
+<table>
+  <thead>
+    <tr><th>Router</th><th>Client-list method</th><th>Auth</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Starlink (stock)</td>
+      <td>gRPC <code>WifiGetClients</code> at <code>192.168.1.1:9000</code> &mdash; returns <code>ip_address</code>, <code>mac_address</code>, <code>active</code> per client</td>
+      <td>None (unauthenticated local)</td>
+    </tr>
+    <tr>
+      <td>GL.iNet</td>
+      <td>JSON-RPC <code>clients.get_list</code> at <code>192.168.8.1/rpc</code> (the worked example above)</td>
+      <td>Challenge/response (admin password)</td>
+    </tr>
+    <tr>
+      <td>OpenWrt</td>
+      <td><code>ubus call hostapd.wlan0 get_clients</code> (via uhttpd-mod-ubus or SSH)</td>
+      <td>ubus session token or SSH key</td>
+    </tr>
+    <tr>
+      <td>Any (fallback)</td>
+      <td><code>/proc/net/arp</code> on the automation host</td>
+      <td>None (local read)</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>For any router with an API: wrap the auth and the call in a small client class, expose a <code>get_online_ips() -&gt; set[str]</code> method, and plug it into the same window logic. The presence adapter does not need to know which router it is talking to once the client list arrives. The Starlink gRPC endpoint is unauthenticated on the local network, which makes it the simplest to integrate.</p>
+
+<p>If your router has no API at all, the ARP fallback still works. It is less reliable for phones that doze aggressively, because a phone that ignores the UDP probe drops out of the ARP table after a few minutes and looks like it left. The ten-minute window papers over most of these gaps, but expect occasional false negatives on older Android devices with aggressive battery optimization.</p>
+
+<p>The total cost of this capability is zero hardware and about 150 lines of code. The router was already there. The phones were already connecting to it. All you did was ask.</p>
+
+<div class="footer">
+  <p>Part of a series on sailboat automation aboard SV Unladen Swallow 2, a Hylas 51.
+  The source code is available at <strong>github.com/shipboard-sa</strong>.</p>
+</div>
+
+</body>
+</html>

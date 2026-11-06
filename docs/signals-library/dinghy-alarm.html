@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A $20 Dinghy Alarm That Lets You Sleep</title>
+<style>
+  :root {
+    --bg: #fafaf8;
+    --fg: #1a1a2e;
+    --muted: #5c5c70;
+    --accent: #2a7f8e;
+    --accent-light: #e4f2f4;
+    --border: #d4d4d8;
+    --code-bg: #f0f0ee;
+    --block-bg: #f5f5f2;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161622;
+      --fg: #e4e4e8;
+      --muted: #9a9ab0;
+      --accent: #4ec4d4;
+      --accent-light: #1e2e32;
+      --border: #2e2e40;
+      --code-bg: #1e1e2e;
+      --block-bg: #1c1c2c;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161622;
+    --fg: #e4e4e8;
+    --muted: #9a9ab0;
+    --accent: #4ec4d4;
+    --accent-light: #1e2e32;
+    --border: #2e2e40;
+    --code-bg: #1e1e2e;
+    --block-bg: #1c1c2c;
+    color-scheme: dark;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { font-size: 17px; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Source Serif 4', 'Georgia', serif;
+    line-height: 1.72;
+    padding: 2.5rem 1.25rem 4rem;
+    max-width: 42rem;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-family: 'Inter', 'Helvetica Neue', sans-serif;
+    font-size: 1.85rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin-bottom: 0.4rem;
+  }
+  h2 {
+    font-family: 'Inter', 'Helvetica Neue', sans-serif;
+    font-size: 1.15rem;
+    font-weight: 650;
+    line-height: 1.3;
+    text-wrap: balance;
+    margin-top: 2.4rem;
+    margin-bottom: 0.6rem;
+    color: var(--accent);
+  }
+  p { margin-bottom: 1rem; }
+  .byline {
+    font-family: 'Inter', 'Helvetica Neue', sans-serif;
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-bottom: 2rem;
+  }
+  .lede {
+    font-size: 1.1rem;
+    color: var(--muted);
+    border-left: 3px solid var(--accent);
+    padding-left: 1rem;
+    margin-bottom: 1.8rem;
+  }
+  strong { font-weight: 650; }
+  em { font-style: italic; }
+
+  .callout {
+    background: var(--accent-light);
+    border-left: 3px solid var(--accent);
+    padding: 0.9rem 1.1rem;
+    border-radius: 4px;
+    margin-bottom: 1.2rem;
+    font-size: 0.94rem;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+
+  .diagram-placeholder {
+    background: var(--block-bg);
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    padding: 1.8rem 1.2rem;
+    text-align: center;
+    color: var(--muted);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    margin-bottom: 1.4rem;
+  }
+
+  ul, ol { margin-left: 1.4rem; margin-bottom: 1rem; }
+  li { margin-bottom: 0.35rem; }
+
+  .footer {
+    margin-top: 3rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.82rem;
+    color: var(--muted);
+    font-family: 'Inter', sans-serif;
+  }
+
+  @media (max-width: 480px) {
+    html { font-size: 16px; }
+    body { padding: 1.5rem 1rem 3rem; }
+    h1 { font-size: 1.5rem; }
+  }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<h1>A $20 Dinghy Alarm That Lets You Sleep</h1>
+<p class="byline">Lee Hutchins and Claude &middot; SV Unladen Swallow 2 &middot; November 2026</p>
+
+<p class="lede">Every cruiser knows the 2&nbsp;AM worry. The dinghy is tied alongside or hanging on the davits, the outboard is worth more than most things on deck, and you are half-listening for a sound that probably is not coming tonight. A wire loop and a digital input solve that for about twenty dollars in parts.</p>
+
+<h2>What Gets Stolen</h2>
+
+<p>Dinghies and outboard motors. Not the mothership&nbsp;&mdash;&nbsp;she is hard to move, hard to hide, and registered. The dinghy is sitting right there, accessible from the water, portable, and worth enough to be worth taking. The outboard makes it worse: a 15&nbsp;hp four-stroke is a few thousand dollars that lifts off the transom in sixty seconds. Every cruising ground has the stories. Some of them are yours.</p>
+
+<p>The risk is highest at night, at anchor or on a mooring. The marina has cameras and neighbors. The anchorage has darkness and distance. You are the only security system your dinghy has.</p>
+
+<h2>Why the Usual Answers Fall Short</h2>
+
+<p><strong>Cable locks</strong> buy time, but battery-operated cable cutters and bolt cutters are cheap, quiet, and fast. A determined thief has already solved the lock problem. The lock is not worthless&nbsp;&mdash;&nbsp;it stops the opportunistic grab&nbsp;&mdash;&nbsp;but it is not something you can sleep on.</p>
+
+<p><strong>GPS trackers</strong> tell you where the dinghy went, not that it is going. By the time you get the notification, check the map, start the engine, and get there, the outboard is off the transom and the thief is gone. Tracking is evidence for an insurance claim, not a deterrent.</p>
+
+<p><strong>Camera systems</strong> work but cost real money and need power, storage, and a network. They also require you to be watching, or to have automation that watches for you&nbsp;&mdash;&nbsp;which is its own project. A camera pointed at the stern is a good idea for other reasons, but it is not the simplest path to a dinghy alarm.</p>
+
+<p><strong>Davits and hoists</strong> are the single best physical deterrent. A dinghy out of the water at night is genuinely harder to steal&nbsp;&mdash;&nbsp;you cannot just untie it and motor away. But not every boat has davits, and even with the dinghy hoisted, the outboard is still accessible from a boat alongside.</p>
+
+<h2>The Loop</h2>
+
+<p>The idea is simple: run a circuit through the dinghy&rsquo;s painter, lift cable, or a dedicated security cable. While the circuit is intact, the dinghy is secured. When the circuit breaks&nbsp;&mdash;&nbsp;cut, unclipped, or disconnected&nbsp;&mdash;&nbsp;the system knows immediately.</p>
+
+<p>The parts:</p>
+<ul>
+  <li>A length of two-conductor wire run through or alongside the securing line. If someone cuts the line, they cut the wire.</li>
+  <li>A digital input on your automation system, Pi, or even a standalone alarm module. The input reads closed (secured) or open (alarm).</li>
+  <li>A physical arm/disarm switch. You arm it when the dinghy is on the davits or tied off for the night. You disarm it when you are using the dinghy. This is deliberate, manual, and obvious&nbsp;&mdash;&nbsp;there is no ambiguity about whether the alarm is on.</li>
+</ul>
+
+<p>That is the entire sensing side. No camera, no GPS, no network, no subscription. A wire, an input, and a switch.</p>
+
+<div class="diagram-placeholder">[Diagram: loop circuit &mdash; arm switch &rarr; wire through painter/cable &rarr; digital input &rarr; alarm logic]</div>
+
+<div class="callout">
+  <p><strong>Design choice:</strong> the arm switch is physical, not software. You flip it at the cleat or the davit when you secure the dinghy for the night. The alarm is armed exactly when you decided it should be, independent of any mode, schedule, or automation state. If the switch is off, nothing happens. If the switch is on and the loop breaks, you know.</p>
+</div>
+
+<h2>What Happens When It Breaks</h2>
+
+<p>The loop provides one signal: intact or broken. What you do with that signal is a design choice. Here are the options, from quiet to loud, each one independent&nbsp;&mdash;&nbsp;a builder picks what fits:</p>
+
+<ul>
+  <li><strong>Phone notification.</strong> You wake up, you look. Minimum viable response. Works anywhere you have connectivity. Can be a push notification, an SMS, or both.</li>
+  <li><strong>Audible alarm on deck.</strong> The thief now knows you know. Most will abandon a theft in progress once an alarm sounds&nbsp;&mdash;&nbsp;they came for the easy grab, not a confrontation. A small weatherproof sounder on the stern rail is a few dollars.</li>
+  <li><strong>Camera snapshot.</strong> If you have a stern camera for other reasons (docking, monitoring the anchorage), grab a still when the loop breaks. Now you have a face and a timestamp. The camera was already there; the loop just tells it when to look.</li>
+  <li><strong>Spotlight.</strong> Light up the stern. The combination of light, alarm, and the knowledge that they have been seen is enough to end most attempts. This is the loud option; it also wakes your neighbors.</li>
+</ul>
+
+<p>Each tier adds deterrent value. The first one is the minimum: you wake up and you know. Everything above that is about making the thief&rsquo;s calculation worse. They came for something quick and quiet; you made it neither.</p>
+
+<h2>What This Does Not Solve</h2>
+
+<p>This alarm protects the dinghy <strong>at the mothership</strong>&nbsp;&mdash;&nbsp;on the davits, on the hook, tied alongside at the dock. It does nothing for the dinghy at the dinghy dock while you are ashore having dinner. That is a different problem with different tools: a cable lock at the dock (to slow the opportunist), a GPS tracker (for the insurance claim), and an eye on the dinghy dock from the restaurant if you can manage it.</p>
+
+<p>It also does not stop a determined, equipped thief who knows the alarm is there and is prepared to act faster than you can respond. No alarm does. What it does is shift the odds: the thief who was going to quietly untie your painter at 3&nbsp;AM and motor away now has to cut a wire that sets off an alarm, on a boat where someone just woke up. Most will find an easier target. That is all any alarm can do, and it is enough to let you sleep.</p>
+
+<div class="footer">
+  <p>Part of a series on sailboat automation aboard SV Unladen Swallow 2, a Hylas 51.
+  The source code is available at <strong>github.com/shipboard-sa</strong>.</p>
+</div>
+
+</body>
+</html>

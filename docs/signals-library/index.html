@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Signals How-To Library — SV Unladen Swallow 2</title>
+<style>
+  :root {
+    --bg: #fafaf8;
+    --fg: #1a1a2e;
+    --muted: #5c5c70;
+    --accent: #2a7f8e;
+    --accent-light: #e4f2f4;
+    --border: #d4d4d8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161622;
+      --fg: #e4e4e8;
+      --muted: #9a9ab0;
+      --accent: #4ec4d4;
+      --accent-light: #1e2e32;
+      --border: #2e2e40;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161622;
+    --fg: #e4e4e8;
+    --muted: #9a9ab0;
+    --accent: #4ec4d4;
+    --accent-light: #1e2e32;
+    --border: #2e2e40;
+    color-scheme: dark;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { font-size: 17px; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Source Serif 4', 'Georgia', serif;
+    line-height: 1.72;
+    padding: 2.5rem 1.25rem 4rem;
+    max-width: 42rem;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-family: 'Inter', 'Helvetica Neue', sans-serif;
+    font-size: 1.85rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin-bottom: 0.4rem;
+  }
+  .byline {
+    font-family: 'Inter', 'Helvetica Neue', sans-serif;
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-bottom: 2rem;
+  }
+  .lede {
+    font-size: 1.1rem;
+    color: var(--muted);
+    border-left: 3px solid var(--accent);
+    padding-left: 1rem;
+    margin-bottom: 2rem;
+  }
+
+  .piece {
+    margin-bottom: 1.6rem;
+    padding-bottom: 1.4rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .piece:last-of-type { border-bottom: none; }
+  .piece h2 {
+    font-family: 'Inter', 'Helvetica Neue', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 650;
+    margin-bottom: 0.3rem;
+  }
+  .piece h2 a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .piece h2 a:hover { text-decoration: underline; }
+  .piece p {
+    font-size: 0.94rem;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .footer {
+    margin-top: 3rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.82rem;
+    color: var(--muted);
+    font-family: 'Inter', sans-serif;
+  }
+
+  @media (max-width: 480px) {
+    html { font-size: 16px; }
+    body { padding: 1.5rem 1rem 3rem; }
+    h1 { font-size: 1.5rem; }
+  }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<h1>Signals How-To Library</h1>
+<p class="byline">Lee Hutchins and Claude &middot; SV Unladen Swallow 2 &middot; November 2026</p>
+
+<p class="lede">Hardware you already own, signals you didn&rsquo;t know you had. Each piece follows the same structure: what the signal provides, what it takes physically, how to read it in software, and lessons learned. Short, standalone, reproducible.</p>
+
+<div class="piece">
+  <h2><a href="crew-presence.html">Your Router Already Knows Who&rsquo;s Aboard</a></h2>
+  <p>Crew presence detection via the router&rsquo;s client-list API. One authenticated call per cycle, match by DHCP-reserved IP, 10-minute window for dozing phones.</p>
+</div>
+
+<div class="piece">
+  <h2><a href="dinghy-alarm.html">A $20 Dinghy Alarm That Lets You Sleep</a></h2>
+  <p>Wire loop through the painter, a digital input, a physical arm switch. Immediate theft detection for the cost of a wire and a magnetic reed switch.</p>
+</div>
+
+<div class="piece">
+  <h2><a href="camera-detection.html">Your Camera Already Knows Who&rsquo;s on the Stern</a></h2>
+  <p>Object detection via Frigate or camera-hub AI. Zone-based person events over MQTT, dwell-time filtering, day/night considerations.</p>
+</div>
+
+<div class="piece">
+  <h2><a href="stereo-enunciator.html">Your Stereo Already Has Speakers Everywhere</a></h2>
+  <p>Four ways to push alarm audio through a Fusion stereo: NMEA 2000 + line-in, DLNA, Bluetooth, or line-in only. Volume management, power sequencing, music priority.</p>
+</div>
+
+<div class="piece">
+  <h2><a href="hall-effect.html">A $3 Clamp That Tells You Everything</a></h2>
+  <p>Non-invasive DC current sensing on any circuit. Bilge pump cycles, freshwater pump leak detection, runtime trending. One conductor only.</p>
+</div>
+
+<div class="piece">
+  <h2><a href="starlink-dish.html">Your Dish Already Knows Why You&rsquo;re Offline</a></h2>
+  <p>gRPC at 192.168.100.1:9200, unauthenticated. Dish state, obstruction fraction, throughput, and the two-device distinction (dish vs router).</p>
+</div>
+
+<div class="footer">
+  <p>Part of a series on sailboat automation aboard SV Unladen Swallow 2, a Hylas 51.
+  The source code is available at <strong>github.com/shipboard-sa</strong>.</p>
+</div>
+
+</body>
+</html>

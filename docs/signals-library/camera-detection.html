@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your Camera Already Knows Who's on the Stern</title>
+<style>
+  :root {
+    --bg: #fafaf8;
+    --fg: #1a1a2e;
+    --muted: #5c5c70;
+    --accent: #2a7f8e;
+    --accent-light: #e4f2f4;
+    --border: #d4d4d8;
+    --code-bg: #f0f0ee;
+    --block-bg: #f5f5f2;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161622;
+      --fg: #e4e4e8;
+      --muted: #9a9ab0;
+      --accent: #4ec4d4;
+      --accent-light: #1e2e32;
+      --border: #2e2e40;
+      --code-bg: #1e1e2e;
+      --block-bg: #1c1c2c;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161622;
+    --fg: #e4e4e8;
+    --muted: #9a9ab0;
+    --accent: #4ec4d4;
+    --accent-light: #1e2e32;
+    --border: #2e2e40;
+    --code-bg: #1e1e2e;
+    --block-bg: #1c1c2c;
+    color-scheme: dark;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { font-size: 17px; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Source Serif 4', 'Georgia', serif;
+    line-height: 1.72;
+    padding: 2.5rem 1.25rem 4rem;
+    max-width: 42rem;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-family: 'Inter', 'Helvetica Neue', sans-serif;
+    font-size: 1.85rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin-bottom: 0.4rem;
+  }
+  h2 {
+    font-family: 'Inter', 'Helvetica Neue', sans-serif;
+    font-size: 1.15rem;
+    font-weight: 650;
+    line-height: 1.3;
+    text-wrap: balance;
+    margin-top: 2.4rem;
+    margin-bottom: 0.6rem;
+    color: var(--accent);
+  }
+  p { margin-bottom: 1rem; }
+  .byline {
+    font-family: 'Inter', 'Helvetica Neue', sans-serif;
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-bottom: 2rem;
+  }
+  .lede {
+    font-size: 1.1rem;
+    color: var(--muted);
+    border-left: 3px solid var(--accent);
+    padding-left: 1rem;
+    margin-bottom: 1.8rem;
+  }
+  strong { font-weight: 650; }
+  em { font-style: italic; }
+
+  code {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.84em;
+    background: var(--code-bg);
+    padding: 0.12em 0.35em;
+    border-radius: 3px;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem 1.2rem;
+    overflow-x: auto;
+    margin-bottom: 1.2rem;
+    line-height: 1.55;
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    font-size: 0.82rem;
+  }
+
+  .callout {
+    background: var(--accent-light);
+    border-left: 3px solid var(--accent);
+    padding: 0.9rem 1.1rem;
+    border-radius: 4px;
+    margin-bottom: 1.2rem;
+    font-size: 0.94rem;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+
+  .diagram-placeholder {
+    background: var(--block-bg);
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    padding: 1.8rem 1.2rem;
+    text-align: center;
+    color: var(--muted);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    margin-bottom: 1.4rem;
+  }
+
+  ul, ol { margin-left: 1.4rem; margin-bottom: 1rem; }
+  li { margin-bottom: 0.35rem; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1.4rem;
+    font-size: 0.92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.5rem 0.7rem;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 0.84rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .footer {
+    margin-top: 3rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.82rem;
+    color: var(--muted);
+    font-family: 'Inter', sans-serif;
+  }
+
+  @media (max-width: 480px) {
+    html { font-size: 16px; }
+    body { padding: 1.5rem 1rem 3rem; }
+    h1 { font-size: 1.5rem; }
+  }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<h1>Your Camera Already Knows Who&rsquo;s on the Stern</h1>
+<p class="byline">Lee Hutchins and Claude &middot; SV Unladen Swallow 2 &middot; November 2026</p>
+
+<p class="lede">Most cruising boats with cameras use them to record. That is useful after the fact&nbsp;&mdash; but the camera sees the person <em>right now</em>, and if you run object detection on the feed, your automation system knows it too. One RTSP camera, a small piece of software, and a few defined zones turn &ldquo;is anyone on my boat&rdquo; from a question you answer by looking out the companionway into a signal you can act on automatically.</p>
+
+<h2>What the Signal Provides</h2>
+
+<p>The output is simple: a boolean event per zone&nbsp;&mdash; <strong>person detected</strong> or <strong>no person detected</strong>&nbsp;&mdash; with a snapshot attached. Not motion. Motion detection fires on every wave crest, every bird landing, every dock line swinging in the wind. On a boat, motion is the normal state of things. Object detection says <em>person</em>, which is the thing you actually care about.</p>
+
+<p>With zones defined on the camera&rsquo;s field of view, the signal gets more specific:</p>
+
+<ul>
+  <li><strong>Swim platform / transom.</strong> Someone boarding from a dinghy alongside, or stepping off the dock onto the sugar scoop. This is the primary boarding path on most boats with a walk-through transom.</li>
+  <li><strong>Dock beside the slip.</strong> Someone walking past is normal; someone stopped and looking is worth knowing about.</li>
+  <li><strong>Side deck.</strong> Nobody belongs there unless they are crew or invited aboard. A person in this zone at 3&nbsp;AM while the boat is in away mode is unambiguous.</li>
+</ul>
+
+<p>What you do with the signal depends on what else you know. Time of day, whether crew is aboard (presence detection&nbsp;&mdash; the previous piece in this series), and the boat&rsquo;s current mode all shape the response. A person on the stern at 2&nbsp;PM with crew aboard is a doorbell notification. The same person at 2&nbsp;AM with nobody aboard is a different conversation entirely.</p>
+
+<h2>What It Takes Physically</h2>
+
+<p><strong>A camera.</strong> Any camera that outputs an RTSP stream works. Most marine-rated and outdoor IP cameras do. Battery-powered wireless cameras (the kind popular on boats because they need no cable run) also work, but they introduce complexity: they wake on motion first, then stream, which means the object-detection layer sees nothing until the camera decides something moved. Wired PoE cameras stream continuously and give the detection layer every frame. If you are buying a camera for this purpose, PoE is simpler.</p>
+
+<p>Some camera hubs&nbsp;&mdash; Reolink&rsquo;s Home Hub is one example&nbsp;&mdash; run their own on-device AI person detection and expose the result through their API. If your hub does this, you can skip the separate detection stack entirely and consume the &ldquo;person detected&rdquo; event directly. The trade-off is that you are locked to that vendor&rsquo;s detection model and whatever zones it supports. A general-purpose detection stack gives you more control.</p>
+
+<p><strong>A detection engine.</strong> <a href="https://frigate.video">Frigate</a> is the open-source standard here. It runs on a Raspberry Pi, a mini PC, or any Docker host. It reads RTSP streams, runs object detection on every frame (or every Nth frame, your choice), and publishes events over MQTT. The detection model it ships with distinguishes people, cars, animals, and a few other categories. For a boat, &ldquo;person&rdquo; is the only one that matters.</p>
+
+<p><strong>An accelerator (recommended).</strong> Frigate is designed around the expectation that a hardware detector is used for low inference times. The current recommendation (Frigate 0.18 docs) is a <strong>Hailo-8L</strong> on a Pi&nbsp;5 via the AI&nbsp;Kit PCIe hat, or an <strong>Intel iGPU</strong> (6th&nbsp;gen or newer) via OpenVINO. The Google Coral USB TPU still works but is no longer recommended for new installations. CPU-only detection is explicitly not recommended for production use&nbsp;&mdash;&nbsp;it works for testing but is an order of magnitude slower than a dedicated detector and will consume most of the host&rsquo;s processing power.</p>
+
+<div class="callout">
+  <p><strong>Why not the camera&rsquo;s built-in motion detection?</strong> Because on a boat, everything moves. The water, the dock lines, the halyards, the reflections on the hull. Camera-vendor motion detection fires on pixel changes with no understanding of what changed. You will drown in false alerts inside a day and turn it off inside a week. Object detection asks &ldquo;is that a person?&rdquo; which is why it works on a moving platform where motion detection does not.</p>
+</div>
+
+<h2>How to Read It</h2>
+
+<p>Frigate publishes MQTT messages on detection events. The topic structure is <code>frigate/events</code> for new/updated events and <code>frigate/&lt;camera&gt;/person</code> as a simple count of people currently in the frame. Your automation system subscribes to these topics and reacts.</p>
+
+<p>The key configuration concepts in Frigate:</p>
+
+<ul>
+  <li><strong>Zones.</strong> Draw rectangles on the camera&rsquo;s view: stern, dock, side-deck, whatever makes sense for your layout. Frigate reports which zone each detection falls in, so your rules can distinguish &ldquo;person on the dock&rdquo; (normal, maybe log it) from &ldquo;person on the side deck&rdquo; (not normal, act on it).</li>
+  <li><strong>Minimum detection score.</strong> Frigate reports a confidence score for each detection. Two settings control filtering: <code>min_score</code> (below this, the detection is ignored entirely) and <code>threshold</code> (the median score must reach this to confirm a true positive). The Frigate docs example uses <code>min_score: 0.5</code> and <code>threshold: 0.7</code>&nbsp;&mdash;&nbsp;start there and tune for your environment.</li>
+  <li><strong>Object filters.</strong> Tell Frigate you only care about &ldquo;person.&rdquo; Ignore cars, dogs, birds. This keeps the event stream clean.</li>
+  <li><strong>Snapshot and clip retention.</strong> Keep a snapshot of every person detection. Short video clips (10&ndash;30 seconds around the event) are useful for review. Storage on a 256&nbsp;GB SD card or small SSD lasts months at this rate.</li>
+</ul>
+
+<pre><code># Frigate config excerpt (config.yml)
+cameras:
+  stern_cam:
+    ffmpeg:
+      inputs:
+        - path: rtsp://192.168.50.10:554/stream1
+          roles:
+            - detect
+            - record
+    detect:
+      width: 1280
+      height: 720
+    zones:
+      transom:
+        coordinates: 0.6,0.3,1.0,0.3,1.0,1.0,0.6,1.0
+      dock:
+        coordinates: 0.0,0.4,0.4,0.4,0.4,1.0,0.0,1.0
+    objects:
+      track:
+        - person
+      filters:
+        person:
+          min_score: 0.5
+          threshold: 0.7</code></pre>
+
+<p>On the automation side, subscribe to Frigate&rsquo;s MQTT events and apply a <strong>dwell-time filter</strong>: require the person to be in the zone for a minimum duration (5&ndash;15 seconds) before raising an alert. A passerby on the dock who walks through the frame in two seconds is not interesting. Someone who stops for ten seconds is.</p>
+
+<div class="diagram-placeholder">[Diagram: RTSP stream &rarr; Frigate (hardware detector) &rarr; MQTT event (zone + snapshot) &rarr; automation rules (dwell filter + mode/presence context) &rarr; response]</div>
+
+<h2>Lessons Learned</h2>
+
+<p><strong>False positives are manageable, not zero.</strong> Great blue herons standing on the swim platform read as people sometimes. Reflections on the water at certain angles can too. Fender covers hung on the lifelines, laundry on the backstay&nbsp;&mdash; anything vaguely person-shaped at the right angle will occasionally trigger. The confidence-score threshold and dwell-time filter together eliminate most of these, but expect a handful of false positives per week in a marina environment. At anchor, it is much quieter&nbsp;&mdash; there are fewer things to misidentify.</p>
+
+<p><strong>Night IR changes the picture.</strong> IR illumination from the camera washes out detail at close range and creates high-contrast silhouettes. Detection works reasonably well in IR mode, but the confidence scores tend to be lower than in visible light. If your camera has a white-light mode for close-range events, switching to it for a few seconds when detection fires gives you a better snapshot and a more reliable second-pass confirmation. The trade-off: white light at 3&nbsp;AM lights up the slip and may annoy your neighbors.</p>
+
+<p><strong>Battery cameras add latency.</strong> A battery-powered camera sleeps until its PIR sensor triggers, then wakes, connects, and starts streaming. That wake-up takes 2&ndash;5 seconds. If the detection target walks through the frame quickly, the camera may not start streaming in time. For a security-critical zone like the transom, a wired camera that streams continuously is more reliable. Battery cameras are fine for secondary zones (dock overview, dinghy davit) where a few-second delay is acceptable.</p>
+
+<p><strong>Zone design matters more than model quality.</strong> A poorly drawn zone that includes a neighbor&rsquo;s deck or a section of the dock with regular foot traffic will generate far more noise than a tightly drawn zone around your own boarding areas. Spend the time getting the zones right. A well-defined transom zone with a 10-second dwell filter on a basic detection model will outperform a state-of-the-art model with sloppy zones every time.</p>
+
+<p><strong>Camera placement on a boat is a compromise.</strong> The ideal placement for stern coverage is high on the arch or bimini frame, looking aft and slightly down. But the boat moves&nbsp;&mdash; at anchor, the stern swings through an arc, and what was the transom zone is now the neighbor&rsquo;s hull. Fixed zones work best at a dock. At anchor, consider a wider zone that accepts the swing and rely on the dwell filter to ignore the scenery passing through.</p>
+
+<div class="callout">
+  <p><strong>Hub-based detection as the simpler path:</strong> if your camera vendor&rsquo;s hub already runs person detection (Reolink, Hikvision, and Dahua hubs all offer this to varying degrees), you can skip Frigate entirely. The hub pushes a webhook or exposes a polling endpoint when it detects a person. You lose custom zones and fine-grained control, but you gain a much simpler stack: no Coral, no Frigate config, no MQTT broker. For many boats, that is the right trade-off.</p>
+</div>
+
+<div class="footer">
+  <p>Part of a series on sailboat automation aboard SV Unladen Swallow 2, a Hylas 51.
+  The source code is available at <strong>github.com/shipboard-sa</strong>.</p>
+</div>
+
+</body>
+</html>

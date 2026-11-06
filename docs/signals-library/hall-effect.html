@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A $3 Clamp That Tells You Everything</title>
+<style>
+  :root {
+    --bg: #fafaf8;
+    --fg: #1a1a2e;
+    --muted: #5c5c70;
+    --accent: #2a7f8e;
+    --accent-light: #e4f2f4;
+    --border: #d4d4d8;
+    --code-bg: #f0f0ee;
+    --block-bg: #f5f5f2;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161622;
+      --fg: #e4e4e8;
+      --muted: #9a9ab0;
+      --accent: #4ec4d4;
+      --accent-light: #1e2e32;
+      --border: #2e2e40;
+      --code-bg: #1e1e2e;
+      --block-bg: #1c1c2c;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161622;
+    --fg: #e4e4e8;
+    --muted: #9a9ab0;
+    --accent: #4ec4d4;
+    --accent-light: #1e2e32;
+    --border: #2e2e40;
+    --code-bg: #1e1e2e;
+    --block-bg: #1c1c2c;
+    color-scheme: dark;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { font-size: 17px; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Source Serif 4', 'Georgia', serif;
+    line-height: 1.72;
+    padding: 2.5rem 1.25rem 4rem;
+    max-width: 42rem;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-family: 'Inter', 'Helvetica Neue', sans-serif;
+    font-size: 1.85rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin-bottom: 0.4rem;
+  }
+  h2 {
+    font-family: 'Inter', 'Helvetica Neue', sans-serif;
+    font-size: 1.15rem;
+    font-weight: 650;
+    line-height: 1.3;
+    text-wrap: balance;
+    margin-top: 2.4rem;
+    margin-bottom: 0.6rem;
+    color: var(--accent);
+  }
+  p { margin-bottom: 1rem; }
+  .byline {
+    font-family: 'Inter', 'Helvetica Neue', sans-serif;
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-bottom: 2rem;
+  }
+  .lede {
+    font-size: 1.1rem;
+    color: var(--muted);
+    border-left: 3px solid var(--accent);
+    padding-left: 1rem;
+    margin-bottom: 1.8rem;
+  }
+  strong { font-weight: 650; }
+  em { font-style: italic; }
+
+  code {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.84em;
+    background: var(--code-bg);
+    padding: 0.12em 0.35em;
+    border-radius: 3px;
+  }
+
+  .callout {
+    background: var(--accent-light);
+    border-left: 3px solid var(--accent);
+    padding: 0.9rem 1.1rem;
+    border-radius: 4px;
+    margin-bottom: 1.2rem;
+    font-size: 0.94rem;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+
+  .diagram-placeholder {
+    background: var(--block-bg);
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    padding: 1.8rem 1.2rem;
+    text-align: center;
+    color: var(--muted);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    margin-bottom: 1.4rem;
+  }
+
+  ul, ol { margin-left: 1.4rem; margin-bottom: 1rem; }
+  li { margin-bottom: 0.35rem; }
+
+  .footer {
+    margin-top: 3rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.82rem;
+    color: var(--muted);
+    font-family: 'Inter', sans-serif;
+  }
+
+  @media (max-width: 480px) {
+    html { font-size: 16px; }
+    body { padding: 1.5rem 1rem 3rem; }
+    h1 { font-size: 1.5rem; }
+  }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<h1>A $3 Clamp That Tells You Everything</h1>
+<p class="byline">Lee Hutchins and Claude &middot; SV Unladen Swallow 2 &middot; November 2026</p>
+
+<p class="lede">Your bilge pump ran three times last night, eight seconds each. Normal. It ran forty-seven times, and each run was longer than the last. You have a problem. A three-dollar current sensor on the supply wire tells you this without cutting a single conductor or making any electrical connection to the monitored circuit.</p>
+
+<h2>What the Signal Gives You</h2>
+
+<p>A Hall effect current sensor wrapped around a wire produces a voltage proportional to the current flowing through it. That is the raw signal. Everything useful comes from what you do with it over time.</p>
+
+<p><strong>Is it running?</strong> Current above a threshold means the device is on. Below it, off. That alone is valuable for any device that runs intermittently and out of sight&nbsp;&mdash;&nbsp;bilge pumps, freshwater pumps, refrigeration compressors, watermakers, anchor wash motors. You are not watching these. Something should be.</p>
+
+<p><strong>How long did it run?</strong> Log the timestamp when current rises above the threshold and when it drops below. The difference is the run duration. A bilge pump cycle of eight seconds is normal for a boat that seeps a little. A cycle of ninety seconds means the water is coming in faster than the pump can move it, or the pump is struggling.</p>
+
+<p><strong>How often?</strong> Count the on-off transitions over a window&nbsp;&mdash;&nbsp;an hour, a night, a week. Three bilge cycles overnight is a dry boat. Forty-seven is not. The anchor wash running for twenty seconds at 3&nbsp;AM means something hit the switch that should not have.</p>
+
+<p><strong>The freshwater pump deserves its own paragraph.</strong> A pressure pump maintains system pressure&nbsp;&mdash;&nbsp;it kicks on when you open a tap and stops when you close it. Normal cycles are short: a few seconds when someone runs the faucet. If a hose fitting fails or a hose bursts below the sole, the pump runs continuously trying to maintain pressure it will never reach. It will drain your tanks. Two hundred gallons gone while you sleep, and the first sign is dry taps in the morning&nbsp;&mdash;&nbsp;or, worse, a cabin sole floating in fresh water. A current sensor tells you the pump has been running for ten minutes straight at 3&nbsp;AM when nobody is using water. That is not a tap left open. That is a leak emptying your tanks, and you catch it when you have lost a gallon, not a hundred.</p>
+
+<p><strong>Trending.</strong> Plot cycle count and duration over days. A bilge pump that averaged three cycles a night for six months and now averages twelve has a new source of water. A refrigeration compressor whose cycles are getting longer is losing charge or has a dirty condenser. The trend is the early warning; the absolute number is the alarm.</p>
+
+<div class="callout">
+  <p><strong>The strongest use cases for cruisers:</strong> bilge pumps (the overnight worry&nbsp;&mdash;&nbsp;did it run, and how much?), freshwater pump (leak detection before you lose your tanks), and anchor wash (runtime logging). Any pump on the boat follows the same pattern: the shower sump pump cycling more often than normal means water is getting somewhere it should not be. A raw water washdown pump running at an unexpected hour is worth knowing about. A macerator running long may be jammed. The same sensor works on anything with a power wire you can reach: refrigeration, watermaker, air conditioning compressor, generator starter motor. One sensor, one input, one pattern.</p>
+</div>
+
+<h2>What It Takes Physically</h2>
+
+<p>The sensor is a small ring&nbsp;&mdash;&nbsp;a &ldquo;donut&rdquo;&nbsp;&mdash;&nbsp;that wraps around a single conductor. Inside the ring, a Hall effect element sits in a gap in a ferrite core. Current flowing through the conductor creates a magnetic field; the ferrite concentrates it across the gap; the Hall element produces a voltage proportional to that field. No electrical connection to the monitored circuit. No wire cutting. No interruption of service.</p>
+
+<p>Two form factors:</p>
+<ul>
+  <li><strong>Split-core.</strong> The ring hinges open so you can clamp it around an existing wire without disconnecting anything. Slightly more expensive (typically $4&ndash;8) but much easier to install. This is what you want for retrofitting a running boat.</li>
+  <li><strong>Solid-core.</strong> A closed ring&nbsp;&mdash;&nbsp;you thread the wire through during installation. Cheaper ($2&ndash;4), slightly better accuracy, and the right choice when you are wiring from scratch or have the circuit de-energized anyway.</li>
+</ul>
+
+<p>The sensor&rsquo;s output goes to an analog input (ADC) on whatever board reads your sensors&nbsp;&mdash;&nbsp;a Pi with a hat, an Arduino, a dedicated I/O module, or any microcontroller with a spare analog channel. If you only need on/off detection and do not care about the actual amperage, a digital input with a comparator works too: current above threshold = high, below = low.</p>
+
+<div class="diagram-placeholder">[Diagram: split-core donut around a single conductor &rarr; analog output &rarr; ADC input &rarr; threshold logic &rarr; event log]</div>
+
+<h2>How to Do It</h2>
+
+<p>The installation is mechanical, not electrical. You are clamping a sensor around a wire, not splicing into it.</p>
+
+<ol>
+  <li><strong>Identify the supply wire.</strong> Find the positive (or negative, does not matter for sensing) supply conductor for the device you want to monitor. It must be a <em>single</em> conductor&nbsp;&mdash;&nbsp;see the critical lesson below.</li>
+  <li><strong>Clamp or thread.</strong> Open the split-core and close it around the wire, or thread the wire through the solid-core ring. The wire passes through the center of the donut. Orientation does not affect detection&nbsp;&mdash;&nbsp;it only affects whether the output reads positive or negative, which your software normalizes.</li>
+  <li><strong>Connect the output.</strong> Run the sensor&rsquo;s signal wire to your ADC input. Most Hall sensors output 0&ndash;5&thinsp;V or 0&ndash;3.3&thinsp;V proportional to current. A 0&thinsp;A reading centers at half the supply voltage (e.g., 2.5&thinsp;V for a 5&thinsp;V sensor); current in one direction raises it, the other lowers it.</li>
+  <li><strong>Set a threshold.</strong> Read the sensor with no current flowing&nbsp;&mdash;&nbsp;that is your baseline. Set the &ldquo;on&rdquo; threshold a comfortable margin above baseline noise. For a bilge pump drawing 4&thinsp;A through a 30&thinsp;A-rated donut, the signal will be obvious. For a 0.5&thinsp;A LED circuit through the same donut, it may be lost in noise&nbsp;&mdash;&nbsp;choose the right sensor for the load.</li>
+  <li><strong>Log events.</strong> When the reading crosses the threshold going up, record the timestamp. When it crosses going back down, record the stop time. You now have a run-event record: device, start, stop, duration. Store these in a file, a database, or a time-series store&nbsp;&mdash;&nbsp;whatever your system uses.</li>
+  <li><strong>Derive the useful numbers.</strong> Cycle count per window. Average and max duration. Trend over days and weeks. Alert when any metric exceeds a threshold you set. The bilge pump that ran forty-seven times last night sends a notification before you step into ankle-deep water.</li>
+</ol>
+
+<h2>Lessons Learned</h2>
+
+<p><strong>You must wrap one conductor only.</strong> This is the single most important thing to get right, and the single most common mistake. If both the supply and return conductors pass through the donut together&nbsp;&mdash;&nbsp;as they do in a jacketed two-conductor cable&nbsp;&mdash;&nbsp;the magnetic fields from the two conductors are equal and opposite. They cancel. The sensor reads zero regardless of how much current is flowing. For jacketed cable, you have two options: place the donut where the conductors separate (at the terminal block, the fuse holder, or the device connection), or strip back a section of the outer jacket to expose the individual conductors and clamp one. This is the only &ldquo;installation&rdquo; that matters, and getting it wrong produces a sensor that silently reads nothing.</p>
+
+<div class="callout">
+  <p><strong>The physics:</strong> a Hall effect sensor measures the <em>net</em> magnetic field through the core. Two conductors carrying equal current in opposite directions (supply and return of the same circuit) produce equal and opposite fields. Net field = zero. Net reading = zero. One conductor only.</p>
+</div>
+
+<p><strong>Match the donut to the load.</strong> Hall sensors are rated for a maximum current&nbsp;&mdash;&nbsp;5&thinsp;A, 20&thinsp;A, 30&thinsp;A, 100&thinsp;A. The output voltage spans the full range at rated current. A 30&thinsp;A donut measuring a 2&thinsp;A bilge pump uses about 7% of its output range, which means poor resolution and a signal barely above noise. A 5&thinsp;A donut on the same pump uses 40% of the range&nbsp;&mdash;&nbsp;clean, easy to threshold. Choose the smallest rating that comfortably exceeds the device&rsquo;s maximum draw. For a bilge pump (3&ndash;6&thinsp;A), a 10&thinsp;A or 20&thinsp;A sensor. For a windlass (80&ndash;120&thinsp;A), a 150&thinsp;A or 200&thinsp;A sensor.</p>
+
+<p><strong>DC, not just AC.</strong> Most marine circuits are 12&thinsp;V or 24&thinsp;V DC. Many cheap current sensors sold for home automation are designed for AC only&nbsp;&mdash;&nbsp;they use a current transformer (CT), not a Hall effect element, and a CT does not respond to DC. Make sure the sensor you buy explicitly supports DC measurement. Look for &ldquo;Hall effect&rdquo; in the description, not &ldquo;current transformer.&rdquo; A CT on a DC circuit reads zero, and it is not obvious why until you read the datasheet.</p>
+
+<p><strong>Calibration.</strong> The raw ADC reading needs a scale factor to produce amperes. The sensor&rsquo;s datasheet gives a sensitivity (e.g., 66&thinsp;mV/A for an ACS712-30A), and your ADC has a known voltage-per-count (e.g., 3.3&thinsp;V / 4096 counts for a 12-bit ADC at 3.3&thinsp;V reference). Multiply through and you have amps per count. For on/off detection you can skip calibration entirely&nbsp;&mdash;&nbsp;you only need &ldquo;above baseline&rdquo; or &ldquo;at baseline,&rdquo; and a relative threshold handles that without knowing the actual amperage.</p>
+
+<p><strong>Placement.</strong> The donut needs to be somewhere you can physically reach the conductor, ideally near a terminal block, breaker panel, or fuse holder where individual conductors are exposed. It also needs to stay put&nbsp;&mdash;&nbsp;a split-core that pops open from vibration stops reading. A cable tie or a dab of silicone keeps it closed. Route the signal wire away from power conductors to avoid noise pickup. And leave enough slack to remove the sensor if you ever need to service the circuit it is monitoring.</p>
+
+<p><strong>What you do not get.</strong> A Hall sensor tells you current is flowing and roughly how much. It does not tell you voltage, so it does not give you power (watts) directly. For that you need a separate voltage measurement&nbsp;&mdash;&nbsp;easy on a fixed 12&thinsp;V or 24&thinsp;V system where the voltage is known, but not something the donut provides. It also does not tell you <em>why</em> a pump is running&nbsp;&mdash;&nbsp;only that it is. The interpretation is yours. But &ldquo;the bilge pump ran forty-seven times last night and the runs are getting longer&rdquo; is enough context for any sailor to know what to do next.</p>
+
+<div class="footer">
+  <p>Part of a series on sailboat automation aboard SV Unladen Swallow 2, a Hylas 51.
+  The source code is available at <strong>github.com/shipboard-sa</strong>.</p>
+</div>
+
+</body>
+</html>

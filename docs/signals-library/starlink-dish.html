@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your Dish Already Knows Why You're Offline</title>
+<style>
+  :root {
+    --bg: #fafaf8;
+    --fg: #1a1a2e;
+    --muted: #5c5c70;
+    --accent: #2a7f8e;
+    --accent-light: #e4f2f4;
+    --border: #d4d4d8;
+    --code-bg: #f0f0ee;
+    --block-bg: #f5f5f2;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161622;
+      --fg: #e4e4e8;
+      --muted: #9a9ab0;
+      --accent: #4ec4d4;
+      --accent-light: #1e2e32;
+      --border: #2e2e40;
+      --code-bg: #1e1e2e;
+      --block-bg: #1c1c2c;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161622;
+    --fg: #e4e4e8;
+    --muted: #9a9ab0;
+    --accent: #4ec4d4;
+    --accent-light: #1e2e32;
+    --border: #2e2e40;
+    --code-bg: #1e1e2e;
+    --block-bg: #1c1c2c;
+    color-scheme: dark;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { font-size: 17px; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Source Serif 4', 'Georgia', serif;
+    line-height: 1.72;
+    padding: 2.5rem 1.25rem 4rem;
+    max-width: 42rem;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-family: 'Inter', 'Helvetica Neue', sans-serif;
+    font-size: 1.85rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin-bottom: 0.4rem;
+  }
+  h2 {
+    font-family: 'Inter', 'Helvetica Neue', sans-serif;
+    font-size: 1.15rem;
+    font-weight: 650;
+    line-height: 1.3;
+    text-wrap: balance;
+    margin-top: 2.4rem;
+    margin-bottom: 0.6rem;
+    color: var(--accent);
+  }
+  p { margin-bottom: 1rem; }
+  .byline {
+    font-family: 'Inter', 'Helvetica Neue', sans-serif;
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-bottom: 2rem;
+  }
+  .lede {
+    font-size: 1.1rem;
+    color: var(--muted);
+    border-left: 3px solid var(--accent);
+    padding-left: 1rem;
+    margin-bottom: 1.8rem;
+  }
+  strong { font-weight: 650; }
+  em { font-style: italic; }
+
+  code {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.84em;
+    background: var(--code-bg);
+    padding: 0.12em 0.35em;
+    border-radius: 3px;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem 1.2rem;
+    overflow-x: auto;
+    margin-bottom: 1.2rem;
+    line-height: 1.55;
+  }
+  pre code {
+    background: none;
+    padding: 0;
+    font-size: 0.82rem;
+  }
+
+  .callout {
+    background: var(--accent-light);
+    border-left: 3px solid var(--accent);
+    padding: 0.9rem 1.1rem;
+    border-radius: 4px;
+    margin-bottom: 1.2rem;
+    font-size: 0.94rem;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+
+  .diagram-placeholder {
+    background: var(--block-bg);
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    padding: 1.8rem 1.2rem;
+    text-align: center;
+    color: var(--muted);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    margin-bottom: 1.4rem;
+  }
+
+  ul, ol { margin-left: 1.4rem; margin-bottom: 1rem; }
+  li { margin-bottom: 0.35rem; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1.4rem;
+    font-size: 0.92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.5rem 0.7rem;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 0.84rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .footer {
+    margin-top: 3rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.82rem;
+    color: var(--muted);
+    font-family: 'Inter', sans-serif;
+  }
+
+  @media (max-width: 480px) {
+    html { font-size: 16px; }
+    body { padding: 1.5rem 1rem 3rem; }
+    h1 { font-size: 1.5rem; }
+  }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<h1>Your Dish Already Knows Why You&rsquo;re Offline</h1>
+<p class="byline">Lee Hutchins and Claude &middot; SV Unladen Swallow 2 &middot; November 2026</p>
+
+<p class="lede">Your Starlink dish exposes a local gRPC API that tells you exactly why you lost connectivity&nbsp;&mdash;&nbsp;obstructed, no satellites in view, thermal shutdown, searching&nbsp;&mdash;&nbsp;without touching the internet it may have just lost. No authentication, no subscription, no extra hardware. One call, and your automation knows the difference between &ldquo;Starlink is down&rdquo; and &ldquo;Starlink is fine, the router rebooted.&rdquo;</p>
+
+<h2>What the Signal Provides</h2>
+
+<p>Most cruisers who lose internet reach for a speed test. If the test fails, they know something is wrong. If it passes&nbsp;&mdash;&nbsp;because the router failed over to cellular&nbsp;&mdash;&nbsp;they may not realize Starlink has been down for an hour, burning through a metered cellular plan.</p>
+
+<p>The dish knows more than &ldquo;up or down.&rdquo; Its status response includes:</p>
+
+<ul>
+  <li><strong>Dish state.</strong> A single field that tells you the specific cause of any outage: <code>CONNECTED</code>, <code>NO_SATS</code> (no satellites in view), <code>SEARCHING</code> (dish is still acquiring), <code>BOOTING</code>, <code>THERMAL_SHUTDOWN</code> (dish overheated), <code>OBSTRUCTED</code>, or several others. This is not a guess&nbsp;&mdash;&nbsp;it is the dish telling you what it is doing right now.</li>
+  <li><strong>Uptime.</strong> How long the dish has been running since its last reboot, in seconds. A short uptime after a power event tells you the dish restarted; a short uptime with no power event tells you something forced a reboot.</li>
+  <li><strong>Obstruction data.</strong> The dish maps its view of the sky and reports where obstructions are, as a fraction of the field of view blocked. On a sailboat this changes with every anchorage, every swing on the hook, and every time the boom moves. The obstruction map is useful for deciding where to mount the dish&nbsp;&mdash;&nbsp;and for understanding why connectivity drops at certain wind angles.</li>
+  <li><strong>Signal quality and throughput.</strong> Downlink and uplink throughput, signal-to-noise ratio, and ping latency. Trend these and you can see degradation before it becomes a complete outage.</li>
+</ul>
+
+<p>The result is a boolean your automation can use&nbsp;&mdash;&nbsp;<em>is Starlink healthy?</em>&nbsp;&mdash;&nbsp;plus the <em>reason</em> when it is not. That reason is what a speed test cannot give you.</p>
+
+<h2>What It Takes Physically</h2>
+
+<p>Nothing. The dish already exposes this data. It runs a gRPC server at <code>192.168.100.1:9200</code> on the local network, with no authentication required. Your automation host&nbsp;&mdash;&nbsp;a Pi, a laptop, anything on the network&nbsp;&mdash;&nbsp;just needs a route to the dish&rsquo;s subnet.</p>
+
+<p>If you are running the stock Starlink router, your automation host is already on the right network. If you run the dish behind a third-party router in bypass mode (common for cruisers who want a VPN, cellular failover, or both), you need the dish&rsquo;s <code>192.168.100.0/24</code> subnet to be routable from your host. Most bypass setups handle this automatically&nbsp;&mdash;&nbsp;the dish&rsquo;s Ethernet feed goes into your router&rsquo;s WAN port, and a static route or the router&rsquo;s default WAN gateway gets you there.</p>
+
+<div class="callout">
+  <p><strong>Two devices, two APIs.</strong> The Starlink <em>router</em> is at <code>192.168.1.1:9000</code> and exposes Wi-Fi client data (connected devices, signal strength). The Starlink <em>dish</em> is at <code>192.168.100.1:9200</code> and exposes connectivity and obstruction data. They are different hardware with different endpoints. The dish API is what this piece is about. If you are in bypass mode, the router is not in the path at all&nbsp;&mdash;&nbsp;you talk directly to the dish.</p>
+</div>
+
+<h2>How to Do It</h2>
+
+<p>The dish speaks gRPC using Protocol Buffers. The open-source <code>starlink-grpc-tools</code> project provides ready-made Python and Go clients that handle the protobuf definitions for you. The core call is <code>get_status</code>:</p>
+
+<pre><code># Using starlink-grpc-tools (Python)
+# pip install starlink-grpc-core
+
+import starlink_grpc
+
+status = starlink_grpc.status_data()
+state  = status["state"]           # e.g. "CONNECTED"
+uptime = status["uptime"]          # seconds since boot
+snr    = status["pop_ping_latency_ms"]
+obstr  = status["fraction_obstructed"]
+
+# Or with grpcurl for a quick test:
+grpcurl -plaintext -d '{"get_status":{}}' \
+  192.168.100.1:9200 \
+  SpaceX.API.Device.Device/Handle</code></pre>
+
+<p>The status response is large&nbsp;&mdash;&nbsp;dozens of fields covering everything from software version to motor position. For automation purposes, the fields that matter are:</p>
+
+<table>
+  <thead>
+    <tr><th>Field</th><th>What it tells you</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>state</code></td>
+      <td>Current dish state: <code>CONNECTED</code>, <code>SEARCHING</code>, <code>NO_SATS</code>, <code>OBSTRUCTED</code>, <code>BOOTING</code>, <code>THERMAL_SHUTDOWN</code>, etc.</td>
+    </tr>
+    <tr>
+      <td><code>uptime</code></td>
+      <td>Seconds since the dish last booted. Detects unexpected reboots.</td>
+    </tr>
+    <tr>
+      <td><code>fraction_obstructed</code></td>
+      <td>0.0&ndash;1.0. How much of the sky view is blocked. Rises at certain wind angles or anchorage positions.</td>
+    </tr>
+    <tr>
+      <td><code>downlink_throughput_bps</code></td>
+      <td>Current download speed. Trend it to catch degradation before a full outage.</td>
+    </tr>
+    <tr>
+      <td><code>pop_ping_latency_ms</code></td>
+      <td>Latency to the nearest ground station. Spikes mean congestion or distance.</td>
+    </tr>
+    <tr>
+      <td><code>currently_obstructed</code></td>
+      <td>Boolean. True when the dish is actively blocked right now.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>Poll every 30&ndash;60 seconds. Log state transitions. Alert on states other than <code>CONNECTED</code> that persist for more than a few minutes&nbsp;&mdash;&nbsp;brief <code>SEARCHING</code> or <code>NO_SATS</code> during a constellation gap is normal; ten minutes of it is not.</p>
+
+<div class="diagram-placeholder">[Diagram: signal flow &mdash; gRPC call to dish (192.168.100.1:9200) &rarr; parse state + obstruction + throughput &rarr; log transition &rarr; alert if degraded &gt; threshold]</div>
+
+<h2>What You Can Build on This</h2>
+
+<p>The raw status data supports several automation patterns:</p>
+
+<ul>
+  <li><strong>Connectivity dashboard.</strong> A single tile on your ship&rsquo;s display: green when connected, yellow when degraded, red when down&nbsp;&mdash;&nbsp;with the reason. No more guessing whether it is an obstruction or a Starlink-side outage.</li>
+  <li><strong>Cellular failover awareness.</strong> If your router failed over to cellular, you want to know. The dish saying <code>CONNECTED</code> while your WAN is on cellular means the router lost its path to the dish, not that Starlink is down. The dish saying <code>NO_SATS</code> while WAN is on cellular confirms the failover was correct and you should expect cellular charges.</li>
+  <li><strong>Obstruction logging by anchorage.</strong> Log the obstruction fraction with your GPS position. Over time, you build a map of which anchorages have good Starlink coverage and which do not. The data is already there&nbsp;&mdash;&nbsp;you are just recording it.</li>
+  <li><strong>Power-aware alerting.</strong> If you know the inverter is off (from your electrical monitoring), suppress the Starlink-down alert. The dish lost power because you turned off the inverter, not because Starlink failed. An alert during an intentional power-down is noise.</li>
+</ul>
+
+<h2>Lessons Learned</h2>
+
+<p><strong>GPS data was removed from the local API.</strong> Earlier Starlink firmware exposed the dish&rsquo;s GPS coordinates through the local gRPC interface. SpaceX removed this in 2024&ndash;2025 firmware updates. Do not plan on getting position from the dish&nbsp;&mdash;&nbsp;use your chartplotter or a dedicated GPS for that.</p>
+
+<p><strong>The dish state field is the signal, not the throughput.</strong> Throughput can drop for many reasons, including normal satellite handoffs. The <code>state</code> field tells you the <em>cause</em>. A state of <code>CONNECTED</code> with low throughput is congestion; a state of <code>OBSTRUCTED</code> with low throughput is a physical problem you can solve by moving the dish or the boat.</p>
+
+<p><strong>Do not confuse dish health with internet health.</strong> If your router has a cellular failover path, a speed test may pass even while Starlink is completely down. The dish API tells you whether <em>Starlink specifically</em> is working. That distinction matters when you are paying by the gigabyte on cellular.</p>
+
+<p><strong>This is the simplest integration on the boat.</strong> No authentication, no session management, no firmware-specific quirks in the API call itself. You send a gRPC request, you get a response. The protobuf definitions are public, the open-source tooling is mature, and the dish does not care who is asking. Compare that to a router API that requires challenge-response auth and session tokens, or a marine instrument bus that requires protocol translation. The dish just answers.</p>
+
+<p><strong>Brief outages are normal.</strong> Satellite handoffs, constellation gaps at certain latitudes, and momentary obstructions from rigging or the boom cause short interruptions. Filter these before alerting. A state of <code>NO_SATS</code> for thirty seconds is Tuesday; <code>NO_SATS</code> for ten minutes at a latitude where coverage should be solid is worth investigating.</p>
+
+<p><strong>When the inverter is off, so is Starlink.</strong> Unless you have wired the dish to DC power (which is possible but not common on production Starlink hardware), the dish runs on the AC outlet the inverter provides. Turning off the inverter at night to save power means Starlink goes down. Your automation should know this and not alert you about it. If your electrical monitoring already tracks inverter state, gate the Starlink alert on inverter power&nbsp;&mdash;&nbsp;no inverter, no alert.</p>
+
+<div class="footer">
+  <p>Part of a series on sailboat automation aboard SV Unladen Swallow 2, a Hylas 51.
+  The source code is available at <strong>github.com/shipboard-sa</strong>.</p>
+</div>
+
+</body>
+</html>

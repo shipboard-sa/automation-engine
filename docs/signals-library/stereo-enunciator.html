@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Your Stereo Already Has Speakers Everywhere</title>
+<style>
+  :root {
+    --bg: #fafaf8;
+    --fg: #1a1a2e;
+    --muted: #5c5c70;
+    --accent: #2a7f8e;
+    --accent-light: #e4f2f4;
+    --border: #d4d4d8;
+    --code-bg: #f0f0ee;
+    --block-bg: #f5f5f2;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161622;
+      --fg: #e4e4e8;
+      --muted: #9a9ab0;
+      --accent: #4ec4d4;
+      --accent-light: #1e2e32;
+      --border: #2e2e40;
+      --code-bg: #1e1e2e;
+      --block-bg: #1c1c2c;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161622;
+    --fg: #e4e4e8;
+    --muted: #9a9ab0;
+    --accent: #4ec4d4;
+    --accent-light: #1e2e32;
+    --border: #2e2e40;
+    --code-bg: #1e1e2e;
+    --block-bg: #1c1c2c;
+    color-scheme: dark;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { font-size: 17px; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Source Serif 4', 'Georgia', serif;
+    line-height: 1.72;
+    padding: 2.5rem 1.25rem 4rem;
+    max-width: 42rem;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-family: 'Inter', 'Helvetica Neue', sans-serif;
+    font-size: 1.85rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin-bottom: 0.4rem;
+  }
+  h2 {
+    font-family: 'Inter', 'Helvetica Neue', sans-serif;
+    font-size: 1.15rem;
+    font-weight: 650;
+    line-height: 1.3;
+    text-wrap: balance;
+    margin-top: 2.4rem;
+    margin-bottom: 0.6rem;
+    color: var(--accent);
+  }
+  p { margin-bottom: 1rem; }
+  .byline {
+    font-family: 'Inter', 'Helvetica Neue', sans-serif;
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-bottom: 2rem;
+  }
+  .lede {
+    font-size: 1.1rem;
+    color: var(--muted);
+    border-left: 3px solid var(--accent);
+    padding-left: 1rem;
+    margin-bottom: 1.8rem;
+  }
+  strong { font-weight: 650; }
+  em { font-style: italic; }
+
+  code {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.84em;
+    background: var(--code-bg);
+    padding: 0.12em 0.35em;
+    border-radius: 3px;
+  }
+
+  .callout {
+    background: var(--accent-light);
+    border-left: 3px solid var(--accent);
+    padding: 0.9rem 1.1rem;
+    border-radius: 4px;
+    margin-bottom: 1.2rem;
+    font-size: 0.94rem;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+
+  .diagram-placeholder {
+    background: var(--block-bg);
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    padding: 1.8rem 1.2rem;
+    text-align: center;
+    color: var(--muted);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    margin-bottom: 1.4rem;
+  }
+
+  ul, ol { margin-left: 1.4rem; margin-bottom: 1rem; }
+  li { margin-bottom: 0.35rem; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1.4rem;
+    font-size: 0.92rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.5rem 0.7rem;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 0.84rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .footer {
+    margin-top: 3rem;
+    padding-top: 1.2rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.82rem;
+    color: var(--muted);
+    font-family: 'Inter', sans-serif;
+  }
+
+  @media (max-width: 480px) {
+    html { font-size: 16px; }
+    body { padding: 1.5rem 1rem 3rem; }
+    h1 { font-size: 1.5rem; }
+  }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<h1>Your Stereo Already Has Speakers Everywhere</h1>
+<p class="byline">Lee Hutchins and Claude &middot; SV Unladen Swallow 2 &middot; November 2026</p>
+
+<p class="lede">A dedicated alarm sounder costs fifty to a hundred dollars and covers one zone. Your marine stereo already has speakers in the salon, the cockpit, and sometimes the flybridge&nbsp;&mdash;&nbsp;and it can speak words, not just beep. One network connection turns it into a whole-boat enunciator for about zero additional dollars in hardware.</p>
+
+<h2>What the Stereo Gives You</h2>
+
+<p>A marine stereo is already wired to amplified, weatherproof speakers in every zone that matters. If it sits on the NMEA&nbsp;2000 bus&nbsp;&mdash;&nbsp;and most Fusion models ship with an N2K port&nbsp;&mdash;&nbsp;the automation system can control source selection, volume, zone routing, and power over the same backbone that carries your instrument data. No additional speakers, no additional amplifier, no additional wiring. It needs a way to push audio to the stereo when something happens, and it already has a bus-level command channel to orchestrate the playback.</p>
+
+<p>That audio can be anything:</p>
+
+<ul>
+  <li><strong>Spoken alerts.</strong> &ldquo;Bilge pump running.&rdquo; &ldquo;Shore power disconnected.&rdquo; A short, clear sentence tells you what happened without having to look at a screen. Text-to-speech is free on every platform; pre-recorded WAV files are more reliable and sound better.</li>
+  <li><strong>Alarm tones.</strong> A rising tone for urgent events, a double chime for informational ones. Different sounds for different severity levels mean you learn what matters without reading anything.</li>
+  <li><strong>Doorbell.</strong> Someone on the stern, crew aboard, daytime&nbsp;&mdash;&nbsp;a two-note chime through the salon speakers. Not a siren, not a phone notification you might miss with the air conditioning running. Just a doorbell, because you already have one&nbsp;&mdash;&nbsp;you just were not using it.</li>
+</ul>
+
+<p>The stereo is not replacing a dedicated alarm panel. A panel with its own sounder and its own power is the last line of defense, and it works when the network is down, the Pi is off, and the stereo is unplugged. The stereo is the <em>first</em> line&nbsp;&mdash;&nbsp;the comfortable, informative, whole-boat voice that handles the everyday events so the panel sounder stays quiet until it genuinely needs to scream.</p>
+
+<h2>What It Takes</h2>
+
+<p>You need three things: a stereo that accepts network audio, audio files for each alert, and a software path from your automation host to the stereo.</p>
+
+<p><strong>The stereo.</strong> If your stereo is on the NMEA&nbsp;2000 bus, you already have a command channel: the automation system can switch the input source, set the volume, select zones, and power it on or off&nbsp;&mdash;&nbsp;all over N2K. Fusion stereos use proprietary PGN&nbsp;126720 (Fusion-Link) plus the standard entertainment PGNs&nbsp;130816&ndash;130820. A SignalK plugin (<code>signalk-fusion-stereo</code>) exposes these as PUT operations. Beyond N2K, most marine stereos also support DLNA/UPnP (network media push), Bluetooth A2DP (audio streaming), or an analog auxiliary input. If yours has an Ethernet or Wi-Fi connection, it almost certainly speaks DLNA. If it has a 3.5&nbsp;mm aux input on the back, a small USB DAC on the automation host gives you a direct analog path.</p>
+
+<p><strong>The audio files.</strong> Pre-record a WAV or MP3 for each alert type. A set of ten to fifteen covers most boats: bilge pump, shore power, low voltage, anchor drag, doorbell, security alert, genset start, genset stop, high water temperature, and a few spares for system-specific events. Keep them short&nbsp;&mdash;&nbsp;two to four seconds each. You can generate them with any text-to-speech engine or record them yourself. The files live on the automation host, not the stereo.</p>
+
+<p><strong>The software path.</strong> This is the only part that takes real work, and the right answer depends on which input method your stereo supports.</p>
+
+<h2>Four Ways to Push Audio</h2>
+
+<table>
+  <thead>
+    <tr><th>Method</th><th>Latency</th><th>Pros</th><th>Cons</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>NMEA&nbsp;2000 + line-in</td>
+      <td>&lt;&nbsp;100&nbsp;ms (audio) + ~1&nbsp;s (N2K commands)</td>
+      <td>Full orchestration: automation switches input, sets volume, selects zones, plays audio, restores previous state&nbsp;&mdash;&nbsp;all programmatically. The bus is already there.</td>
+      <td>Requires an N2K-capable stereo and a physical audio cable for the actual sound (N2K carries commands, not audio)</td>
+    </tr>
+    <tr>
+      <td>DLNA / UPnP</td>
+      <td>1&ndash;3 seconds</td>
+      <td>No wires, works over the ship&rsquo;s LAN, stereo discovers the media server automatically</td>
+      <td>Startup delay while the renderer loads the track; stereo must be powered on and on the network</td>
+    </tr>
+    <tr>
+      <td>Bluetooth A2DP</td>
+      <td>0.5&ndash;1 second</td>
+      <td>No network infrastructure needed; most stereos pair easily</td>
+      <td>One device at a time; if someone&rsquo;s phone is paired, the automation host cannot push audio without unpairing first</td>
+    </tr>
+    <tr>
+      <td>Line-in only (USB DAC)</td>
+      <td>&lt;&nbsp;100&nbsp;ms</td>
+      <td>Instant, deterministic, no protocol overhead, works with any stereo that has an aux input</td>
+      <td>No programmatic volume or source control unless the stereo is also on N2K; requires a physical cable</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>N2K + line-in</strong> is the strongest option if your stereo sits on the NMEA&nbsp;2000 bus. The bus carries the commands&nbsp;&mdash;&nbsp;switch to the AUX input, set the volume, select which zones play, power on if needed&nbsp;&mdash;&nbsp;and the line-in cable carries the actual audio from the automation host. The automation system orchestrates a full sequence: switch source, set alert volume, play the audio file, then restore the previous source and volume when it finishes. This is the only method that gives you programmatic control of what the stereo does before and after the alert. SignalK&rsquo;s <code>signalk-fusion-stereo</code> plugin exposes these controls as PUT operations for Fusion stereos; your Garmin MFD can already do the same thing from the chart plotter, which confirms the PGNs are live on the bus.</p>
+
+<p><strong>DLNA</strong> is the cleanest if your stereo is not on N2K. The automation host runs a lightweight UPnP control point&nbsp;&mdash;&nbsp;libraries exist in Python, Node, and Go&nbsp;&mdash;&nbsp;that discovers the stereo on the LAN, pushes a URI pointing to the audio file, and tells the stereo to play. The one-to-three-second startup delay is fine for informational alerts. It is not fine for a fire alarm, which is why the dedicated alarm panel exists.</p>
+
+<p><strong>Line-in only</strong> (without N2K) is the simplest path if latency matters and you can run a cable. A USB DAC plugged into the automation host&rsquo;s USB port, a 3.5&nbsp;mm cable to the stereo&rsquo;s aux input, and <code>aplay</code> or <code>mpv</code> on the host side. The audio plays the instant the command fires. No network negotiation, no renderer startup, no pairing dance. The stereo just needs to be on and set to the aux input. You lose programmatic volume and source control unless you also have the N2K path.</p>
+
+<p><strong>Bluetooth</strong> works but has an ownership problem. Most marine stereos pair with one device at a time. If a crew member&rsquo;s phone is connected for music, the automation host cannot push an alert without first disconnecting the phone. This makes Bluetooth a poor choice for alerts unless you dedicate the Bluetooth connection to the automation system and use a different input for music.</p>
+
+<div class="callout">
+  <p><strong>N2K is the command channel, not the audio channel.</strong> A common confusion: NMEA&nbsp;2000 does not carry audio. It carries entertainment-control PGNs&nbsp;&mdash;&nbsp;source selection, volume, zone routing, transport controls (play/pause/skip). The actual sound still needs a path to the stereo: line-in, DLNA, or Bluetooth. N2K tells the stereo <em>what to do</em>; the audio path gives it <em>something to play</em>.</p>
+</div>
+
+<div class="diagram-placeholder">[Diagram: automation host &rarr; DLNA push / line-in / Bluetooth &rarr; stereo head unit &rarr; salon speakers + cockpit speakers]</div>
+
+<h2>What Happens When Music Is Playing</h2>
+
+<p>If the stereo is playing music and an alert fires, you need a plan for priority. The options depend on the audio path:</p>
+
+<ul>
+  <li><strong>DLNA:</strong> pushing a new track to the renderer interrupts whatever is playing. The stereo switches to the alert, plays it, and stops. If you want music to resume, your automation needs to re-push the previous source after the alert finishes. Some stereos handle this gracefully; others leave you in silence. Test yours.</li>
+  <li><strong>Line-in with zone mixing:</strong> if the stereo supports mixing aux into the active source, the alert plays over the music without interrupting it. This is the cleanest experience but requires a stereo that supports it. Fusion&rsquo;s zone configuration on some models allows this.</li>
+  <li><strong>Line-in as primary:</strong> if aux is the active source, alerts play immediately and there is no conflict. Music comes from a different source (phone via Bluetooth, USB stick, streaming). Alerts interrupt only when the stereo is on the aux channel.</li>
+</ul>
+
+<div class="callout">
+  <p><strong>Design decision:</strong> the simplest approach is to not worry about music resumption. An alert plays for three seconds. If the music stops, someone taps play. The alternative&nbsp;&mdash;&nbsp;saving playback state, re-pushing the source, handling edge cases around streaming services&nbsp;&mdash;&nbsp;adds complexity for a problem that happens a few times a day at most. Build the simple version first.</p>
+</div>
+
+<h2>Volume at 3&nbsp;AM</h2>
+
+<p>A bilge-pump alert at 3&nbsp;AM should not play at the same volume as the afternoon&rsquo;s music. If you have programmatic volume control&nbsp;&mdash;&nbsp;N2K gives you this natively via the entertainment PGNs, DLNA and Bluetooth also support it, line-in alone does not without a hardware attenuator&nbsp;&mdash;&nbsp;build a time-of-day profile:</p>
+
+<ul>
+  <li><strong>Day (0700&ndash;2200):</strong> normal volume. The alert competes with wind, engine noise, conversation. It needs to be audible but not startling.</li>
+  <li><strong>Night (2200&ndash;0700):</strong> reduced volume. The boat is quiet; the salon is ten feet from the berth. A spoken alert at conversation volume is plenty. Save the full-volume siren for the alarm panel, which has its own sounder and its own rules about when to use it.</li>
+</ul>
+
+<p>If your audio path is line-in and you cannot control the stereo&rsquo;s volume programmatically, adjust the output level on the Pi side. ALSA mixer on Linux, or simply encode the night-time audio files at a lower level.</p>
+
+<h2>Stereo Power State</h2>
+
+<p>The stereo must be on to play audio. This sounds obvious, but it is the single most common failure mode for this approach. If the stereo powers down when the ignition is off, or when the entertainment breaker is tripped, or after a timeout, your enunciator is silent exactly when you need it most&nbsp;&mdash;&nbsp;at night, at anchor, with the boat buttoned up.</p>
+
+<p>Options:</p>
+
+<ul>
+  <li><strong>Leave the stereo on.</strong> Most marine stereos draw very little in standby&nbsp;&mdash;&nbsp;a few hundred milliamps. If your house bank can absorb that, leave it powered. Fusion stereos in standby draw roughly 150&ndash;300&nbsp;mA depending on model, which is about 3&ndash;7&nbsp;Ah over a 24-hour period. On a cruising boat with solar and a lithium bank, this is negligible.</li>
+  <li><strong>Relay-controlled power.</strong> Wire the stereo through a small relay that the automation system energizes on demand. The stereo boots when the relay closes, the automation waits for the N2K heartbeat (confirming it is alive on the bus), then sends the alert sequence. Boot time is typically 5&ndash;15 seconds, so this approach trades standby draw for startup latency. Whether that trade-off works depends on whether your alerts can wait fifteen seconds.</li>
+  <li><strong>Wake-on-LAN or CEC.</strong> Some stereos support network wake. If yours does, the automation host can wake the stereo before pushing the alert. This adds a second or two of latency but keeps the stereo off when nothing is happening. Check your model&rsquo;s documentation.</li>
+</ul>
+
+<p>The pragmatic answer for most boats is to leave the stereo in standby on the house bank. The draw is trivial and the stereo is always ready.</p>
+
+<h2>Cockpit Speakers</h2>
+
+<p>The cockpit speakers are already weatherproof&nbsp;&mdash;&nbsp;the stereo installer handled that. They are mounted, wired, and driven by the stereo&rsquo;s amplifier. You did not have to do anything. This is the entire point: the infrastructure was already there for music. You are borrowing it for alerts.</p>
+
+<p>If your stereo supports independent zone control (salon, cockpit, flybridge), you can choose which zones hear which alerts. A doorbell chime plays in the salon. An anchor-drag alarm plays everywhere. A bilge-pump notification plays in the cockpit during the day (where you probably are) and the salon at night (where it will wake you). Zone routing is a refinement, not a requirement&nbsp;&mdash;&nbsp;playing every alert on every speaker is a perfectly good starting point.</p>
+
+<h2>What This Costs</h2>
+
+<p>If you already have a network-capable marine stereo: zero dollars. The speakers are installed. The amplifier is installed. The wiring is done. You need software on the automation host and a set of audio files. If you go the line-in route, add a $10 USB DAC and a cable.</p>
+
+<p>Compare that to dedicated sounders: $50&ndash;100 per zone, plus wiring, plus mounting, plus weatherproofing for the cockpit unit, plus a driver circuit from the automation system. For a three-zone boat (salon, cockpit, flybridge), that is $150&ndash;300 in hardware before you run the first wire. The stereo was already there. All you did was talk to it.</p>
+
+<div class="footer">
+  <p>Part of a series on sailboat automation aboard SV Unladen Swallow 2, a Hylas 51.
+  The source code is available at <strong>github.com/shipboard-sa</strong>.</p>
+</div>
+
+</body>
+</html>
