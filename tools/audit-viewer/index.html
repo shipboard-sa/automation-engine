@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<!--
+Purpose: Audit Log Viewer — human-readable browser for the Ship's Automation audit trail.
+    Shows engine decisions, signal history (for threshold tuning), relay proof, and a
+    unified timeline. Connects to serve.py (same directory) which reads from PostgreSQL
+    (reporting.* views) or local JSONL files.
+Version: v3 (2026-11-05) - v3: datetime-local pickers for Since fields (date + time).
+    v2 (2026-11-05) - v2: nginx /audit/api/ auto-discovery for Pi deployment.
+Scope: PRODUCTION once deployed; also usable standalone.
+Architecture: tools/audit-viewer/. HTML+JS front end; serve.py provides /api/* endpoints.
+    On the Pi: nginx proxies /audit/api/ to 127.0.0.1:8766/api/ (boat-audit-api.service).
+    Standalone: python serve.py [--dsn DSN] [--jsonl PATH] [--port 8766].
+Invocation: On the Pi, open http://boat-automation:8080/tools/audit-viewer/.
+    Standalone: python serve.py [--dsn DSN] [--jsonl PATH] [--port 8766], then open http://localhost:8766/
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Audit Viewer — SV Unladen Swallow 2</title>
+<style>
+:root {
+  --bg: #1a1a2e;
+  --surface: #16213e;
+  --surface2: #0f3460;
+  --text: #e8e8e8;
+  --text-dim: #8892b0;
+  --accent: #e94560;
+  --accent2: #0ea5e9;
+  --green: #22c55e;
+  --yellow: #eab308;
+  --orange: #f97316;
+  --red: #ef4444;
+  --border: #2a2a4a;
+  --mono: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.5;
+  padding: 1rem; padding-bottom: 3rem;
+}
+h1 { font-size: 1.3rem; margin-bottom: 0.5rem; }
+h1 span { color: var(--accent); }
+
+/* TABS */
+.tabs {
+  display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 2px solid var(--border);
+}
+.tab {
+  padding: 0.5rem 1.2rem; background: transparent; border: none; color: var(--text-dim);
+  font-size: 0.9rem; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent2); border-bottom-color: var(--accent2); font-weight: 600; }
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* TOOLBAR */
+.toolbar {
+  display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;
+  padding: 0.75rem; background: var(--surface); border-radius: 8px;
+  margin-bottom: 1rem; border: 1px solid var(--border);
+}
+.toolbar label { font-size: 0.8rem; color: var(--text-dim); }
+.toolbar select, .toolbar input[type="text"], .toolbar input[type="number"], .toolbar input[type="datetime-local"] {
+  background: var(--bg); color: var(--text); border: 1px solid var(--border);
+  border-radius: 4px; padding: 4px 8px; font-size: 0.85rem; color-scheme: dark;
+}
+.toolbar input[type="text"] { width: 180px; }
+
+.btn {
+  padding: 4px 12px; border: 1px solid var(--border); border-radius: 4px;
+  background: var(--surface); color: var(--text); font-size: 0.8rem; cursor: pointer;
+}
+.btn:hover { border-color: var(--accent2); background: var(--surface2); }
+.btn-primary { background: var(--accent2); color: #fff; border-color: var(--accent2); }
+.btn-primary:hover { background: #0284c7; }
+
+/* CARDS */
+.card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 0.6rem 1rem; margin-bottom: 0.4rem; transition: border-color 0.2s;
+}
+.card:hover { border-color: var(--accent2); }
+.card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem; }
+.card-ts { font-family: var(--mono); font-size: 0.78rem; color: var(--text-dim); }
+.card-body { font-size: 0.85rem; }
+.card-detail { font-size: 0.8rem; color: var(--text-dim); margin-top: 0.25rem; }
+
+.badge {
+  font-size: 0.6rem; padding: 1px 6px; border-radius: 3px; font-weight: 600; text-transform: uppercase;
+}
+.sev-EMERGENCY { background: var(--red); color: #fff; }
+.sev-ALARM { background: var(--orange); color: #000; }
+.sev-NOTICE { background: var(--accent2); color: #fff; }
+.sev-LOG { background: var(--border); color: var(--text-dim); }
+
+.outcome-executed { color: var(--green); }
+.outcome-dry_run { color: var(--yellow); }
+.outcome-refused { color: var(--red); }
+.outcome-noted { color: var(--text-dim); }
+
+.kind-tag { background: var(--surface2); color: var(--text); }
+
+/* SIGNAL HISTORY */
+.hist-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 0.5rem; }
+.hist-table th {
+  text-align: left; padding: 6px 8px; background: var(--surface2); color: var(--text-dim);
+  font-size: 0.75rem; text-transform: uppercase; border-bottom: 1px solid var(--border);
+}
+.hist-table td {
+  padding: 4px 8px; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 0.8rem;
+}
+.hist-table tr:hover { background: var(--surface); }
+
+/* RELAY PROOF */
+.relay-confirmed { color: var(--green); }
+.relay-mismatch { color: var(--red); font-weight: bold; }
+.relay-reasserted { color: var(--orange); }
+.relay-unreadable { color: var(--text-dim); }
+
+/* STATS ROW */
+.stats {
+  display: flex; gap: 1rem; flex-wrap: wrap; padding: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem; font-size: 0.8rem; color: var(--text-dim);
+}
+
+/* CHART */
+.chart-area {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 0.75rem; margin-bottom: 1rem; min-height: 180px; position: relative;
+}
+.chart-area canvas { width: 100% !important; }
+.no-data { text-align: center; padding: 3rem; color: var(--text-dim); }
+
+/* STATUS BAR */
+.status-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; padding: 0.4rem 1rem;
+  background: var(--surface); border-top: 1px solid var(--border); font-size: 0.8rem;
+  display: flex; gap: 1rem; align-items: center; z-index: 100;
+}
+.status-msg { color: var(--text-dim); }
+.status-ok { color: var(--green); }
+.status-err { color: var(--red); }
+
+.expand-btn {
+  background: none; border: none; color: var(--accent2); cursor: pointer; font-size: 0.8rem;
+  text-decoration: underline;
+}
+.inputs-panel { display: none; padding: 0.4rem 0 0 1rem; }
+.inputs-panel.open { display: block; }
+
+/* FILE PICKER (file:// mode) */
+.file-picker {
+  display: none; gap: 0.5rem; flex-wrap: wrap; align-items: center;
+  padding: 0.75rem; background: var(--surface); border: 2px dashed var(--accent2);
+  border-radius: 8px; margin-bottom: 1rem;
+}
+.file-picker.open { display: flex; }
+.file-picker label { font-size: 0.8rem; color: var(--text-dim); }
+.file-picker .fp-note {
+  font-size: 0.8rem; color: var(--yellow); width: 100%; margin-bottom: 0.3rem;
+}
+.file-picker input[type="file"] { font-size: 0.8rem; color: var(--text-dim); }
+.file-picker input[type="file"]::file-selector-button {
+  background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 4px; padding: 3px 8px; cursor: pointer; font-size: 0.8rem;
+}
+.file-picker .fp-status { font-size: 0.8rem; color: var(--green); }
+</style>
+</head>
+<body>
+
+<h1>Audit Viewer — <span>SV Unladen Swallow 2</span></h1>
+
+<div class="file-picker" id="filePicker">
+  <div class="fp-note" id="fpNote">Offline mode — no serve.py detected. Load a JSONL file or connect to serve.py.</div>
+  <label>API URL:
+    <input type="text" id="apiUrl" placeholder="http://localhost:8766" style="width:260px; background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:4px; padding:4px 8px; font-size:0.85rem">
+  </label>
+  <button class="btn btn-primary" onclick="connectApi()">Connect</button>
+  <span style="color:var(--text-dim); font-size:0.8rem; margin:0 0.5rem">or</span>
+  <label>JSONL file:
+    <input type="file" id="jsonlFile" accept=".jsonl,.json,.ndjson">
+  </label>
+  <span class="fp-status" id="fpStatus"></span>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('decisions')">Decisions</button>
+  <button class="tab" onclick="switchTab('history')">Signal History</button>
+  <button class="tab" onclick="switchTab('relay')">Relay Proof</button>
+  <button class="tab" onclick="switchTab('timeline')">Timeline</button>
+</div>
+
+<!-- ==================== DECISIONS ==================== -->
+<div class="panel active" id="panel-decisions">
+  <div class="toolbar">
+    <label>Rule:
+      <select id="dRule"><option value="">All rules</option></select>
+    </label>
+    <label>Severity:
+      <select id="dSeverity">
+        <option value="">All</option>
+        <option value="EMERGENCY">EMERGENCY</option>
+        <option value="ALARM">ALARM</option>
+        <option value="NOTICE">NOTICE</option>
+        <option value="LOG">LOG</option>
+      </select>
+    </label>
+    <label>Limit:
+      <input type="number" id="dLimit" value="200" min="1" max="5000" style="width:70px">
+    </label>
+    <label>Since:
+      <input type="datetime-local" id="dSince" step="1" style="width:190px">
+    </label>
+    <button class="btn btn-primary" onclick="loadDecisions()">Query</button>
+    <label>Search:
+      <input type="text" id="dSearch" placeholder="filter loaded rows…">
+    </label>
+  </div>
+  <div class="stats" id="dStats"></div>
+  <div id="decisionsList"></div>
+</div>
+
+<!-- ==================== SIGNAL HISTORY ==================== -->
+<div class="panel" id="panel-history">
+  <div class="toolbar">
+    <label>Signal:
+      <select id="hSignal"><option value="">Select signal…</option></select>
+    </label>
+    <label>Since:
+      <input type="datetime-local" id="hSince" step="1" style="width:190px">
+    </label>
+    <label>Limit:
+      <input type="number" id="hLimit" value="500" min="1" max="5000" style="width:70px">
+    </label>
+    <button class="btn btn-primary" onclick="loadSignalHistory()">Query</button>
+  </div>
+  <div class="chart-area" id="histChart"><div class="no-data">Select a signal and click Query</div></div>
+  <div class="stats" id="hStats"></div>
+  <div id="historyTable"></div>
+</div>
+
+<!-- ==================== RELAY PROOF ==================== -->
+<div class="panel" id="panel-relay">
+  <div class="toolbar">
+    <label>Function:
+      <input type="text" id="rFunction" placeholder="filter by function">
+    </label>
+    <label>Limit:
+      <input type="number" id="rLimit" value="200" min="1" max="2000" style="width:70px">
+    </label>
+    <button class="btn btn-primary" onclick="loadRelayProof()">Query</button>
+  </div>
+  <div class="stats" id="rStats"></div>
+  <div id="relayList"></div>
+</div>
+
+<!-- ==================== TIMELINE ==================== -->
+<div class="panel" id="panel-timeline">
+  <div class="toolbar">
+    <label>Rule:
+      <select id="tRule"><option value="">All rules</option></select>
+    </label>
+    <label>Limit:
+      <input type="number" id="tLimit" value="300" min="1" max="5000" style="width:70px">
+    </label>
+    <button class="btn btn-primary" onclick="loadTimeline()">Query</button>
+    <label>Search:
+      <input type="text" id="tSearch" placeholder="filter loaded rows…">
+    </label>
+  </div>
+  <div id="timelineList"></div>
+</div>
+
+<div class="status-bar">
+  <span class="status-msg" id="statusMsg">Ready — queries go to serve.py (default http://localhost:8766)</span>
+</div>
+
+<script>
+let API = '';  // same origin by default; overridden by the API URL field
+
+// ============================================================================
+// LOCAL MODE — file:// fallback with client-side JSONL parsing
+// ============================================================================
+let localMode = false;
+let localRows = [];
+
+function parseJsonl(text) {
+  const rows = [];
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try { rows.push(JSON.parse(trimmed)); } catch {}
+  }
+  return rows;
+}
+
+function localDecisions(rows) {
+  return rows.filter(r => r.kind === 'audit');
+}
+
+function localSignals(rows) {
+  const sigs = new Set();
+  for (const r of rows) {
+    for (const inp of (r.inputs || [])) {
+      if (inp && inp.signal) sigs.add(inp.signal);
+    }
+    const payload = r.payload;
+    if (payload && typeof payload === 'object') {
+      for (const inp of (payload.inputs || [])) {
+        if (inp && inp.signal) sigs.add(inp.signal);
+      }
+    }
+  }
+  return [...sigs].sort();
+}
+
+function localRules(rows) {
+  const rules = new Set();
+  for (const r of rows) {
+    const rid = r.rule || r.rule_id;
+    if (rid) rules.add(rid);
+  }
+  return [...rules].sort();
+}
+
+function localSignalHistory(rows, signal) {
+  const points = [];
+  for (const r of rows) {
+    if (r.kind !== 'audit') continue;
+    const inputs = r.inputs || (r.payload && typeof r.payload === 'object' ? r.payload.inputs : null) || [];
+    for (const inp of inputs) {
+      if (inp && inp.signal === signal && inp.known) {
+        points.push({
+          ts: r.ts,
+          value: inp.value,
+          rule: r.rule || r.rule_id,
+          decision_kind: r.payload && typeof r.payload === 'object' ? r.payload.kind : null,
+          outcome: r.outcome,
+          severity: r.payload && typeof r.payload === 'object' ? r.payload.severity : r.severity,
+        });
+      }
+    }
+  }
+  points.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+  return points;
+}
+
+function localDispatch(endpoint, params) {
+  const limit = parseInt(params.limit) || 500;
+  const rule = params.rule || null;
+  const severity = params.severity || null;
+  const since = params.since || null;
+
+  if (endpoint === 'signals') return localSignals(localRows);
+  if (endpoint === 'rules') return localRules(localRows);
+  if (endpoint === 'decisions') {
+    let decs = localDecisions(localRows);
+    if (rule) decs = decs.filter(d => (d.rule || d.rule_id) === rule);
+    if (severity) decs = decs.filter(d =>
+      d.severity === severity || (d.payload && typeof d.payload === 'object' && d.payload.severity === severity));
+    if (since) {
+      const sinceMs = new Date(since).getTime();
+      if (!isNaN(sinceMs)) decs = decs.filter(d => {
+        const t = typeof d.ts === 'number' ? d.ts * 1000 : new Date(d.ts).getTime();
+        return t >= sinceMs;
+      });
+    }
+    return decs.slice(-limit);
+  }
+  if (endpoint === 'signal-history' && params.signal) {
+    let pts = localSignalHistory(localRows, params.signal);
+    if (since) {
+      const sinceMs = new Date(since).getTime();
+      if (!isNaN(sinceMs)) pts = pts.filter(p => {
+        const t = typeof p.ts === 'number' ? p.ts * 1000 : new Date(p.ts).getTime();
+        return t >= sinceMs;
+      });
+    }
+    return pts.slice(-limit);
+  }
+  if (endpoint === 'events') {
+    return localRows.filter(r => r.kind === 'event').slice(-limit);
+  }
+  if (endpoint === 'all') return localRows.slice(-limit);
+  if (endpoint === 'timeline') return [];
+  if (endpoint === 'relay-proof') return [];
+  return [];
+}
+
+document.getElementById('jsonlFile').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    localRows = parseJsonl(reader.result);
+    localMode = true;
+    document.getElementById('fpStatus').textContent = `${localRows.length} rows loaded from ${file.name}`;
+    setStatus(`Local mode — ${localRows.length} rows from ${file.name}`, 'ok');
+    initPickLists();
+  };
+  reader.readAsText(file);
+});
+
+// ============================================================================
+// TAB SWITCHING
+// ============================================================================
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelector(`.tab[onclick*="${name}"]`).classList.add('active');
+  document.getElementById('panel-' + name).classList.add('active');
+}
+
+// ============================================================================
+// INIT — load pick lists
+// ============================================================================
+async function init() {
+  const isFile = location.protocol === 'file:';
+  const urlField = document.getElementById('apiUrl');
+
+  if (isFile) {
+    document.getElementById('filePicker').classList.add('open');
+    urlField.value = 'http://localhost:8766';
+    setStatus('Offline mode — load a JSONL file or connect to serve.py', 'msg');
+    return;
+  }
+
+  // Try same-origin first (works when served by serve.py directly on :8766)
+  try {
+    await initPickLists();
+    return;
+  } catch {}
+
+  // Try the nginx proxy path (works when served from /tools/audit-viewer/ behind nginx)
+  const proxyApi = `${location.origin}/audit`;
+  API = proxyApi;
+  try {
+    await initPickLists();
+    urlField.value = proxyApi;
+    return;
+  } catch {}
+
+  // Neither worked — try default serve.py port on the same host (direct)
+  const defaultApi = `${location.protocol}//${location.hostname}:8766`;
+  API = defaultApi;
+  try {
+    await initPickLists();
+    urlField.value = defaultApi;
+    return;
+  } catch {}
+
+  // Both failed — show the picker
+  API = '';
+  document.getElementById('filePicker').classList.add('open');
+  urlField.value = `${location.protocol}//${location.hostname}:8766`;
+  document.getElementById('fpNote').textContent =
+    'Could not reach serve.py — enter the API URL and click Connect, or load a JSONL file.';
+  setStatus('API unreachable — connect to serve.py or load a file', 'err');
+}
+
+async function connectApi() {
+  const url = document.getElementById('apiUrl').value.replace(/\/+$/, '');
+  if (!url) { setStatus('Enter a serve.py URL first', 'err'); return; }
+  API = url;
+  localMode = false;
+  setStatus(`Connecting to ${url}…`, 'msg');
+  try {
+    await initPickLists();
+    document.getElementById('filePicker').classList.remove('open');
+  } catch (e) {
+    setStatus(`Could not reach ${url} — ${e.message}`, 'err');
+    API = '';
+  }
+}
+
+async function initPickLists() {
+  const [signals, rules] = await Promise.all([
+    apiFetch('signals'), apiFetch('rules')
+  ]);
+  populateSelect('hSignal', signals, 'Select signal…');
+  populateSelect('dRule', rules, 'All rules');
+  populateSelect('tRule', rules, 'All rules');
+  setStatus(`Loaded ${signals.length} signals, ${rules.length} rules`, 'ok');
+}
+
+function populateSelect(id, items, allLabel) {
+  const sel = document.getElementById(id);
+  sel.innerHTML = `<option value="">${esc(allLabel)}</option>`;
+  for (const item of items) {
+    sel.innerHTML += `<option value="${esc(item)}">${esc(item)}</option>`;
+  }
+}
+
+async function apiFetch(endpoint, params = {}) {
+  if (localMode) return localDispatch(endpoint, params);
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== '' && v != null) qs.set(k, v);
+  }
+  const url = API + '/api/' + endpoint + (qs.toString() ? '?' + qs : '');
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`API ${resp.status}`);
+  return resp.json();
+}
+
+// ============================================================================
+// DECISIONS
+// ============================================================================
+let decisionsData = [];
+
+async function loadDecisions() {
+  setStatus('Loading decisions…', 'msg');
+  try {
+    const data = await apiFetch('decisions', {
+      rule: document.getElementById('dRule').value,
+      severity: document.getElementById('dSeverity').value,
+      limit: document.getElementById('dLimit').value,
+      since: document.getElementById('dSince').value,
+    });
+    decisionsData = data;
+    renderDecisions();
+    setStatus(`${data.length} decisions loaded`, 'ok');
+  } catch (e) {
+    setStatus('Error: ' + e.message, 'err');
+  }
+}
+
+function renderDecisions() {
+  const search = document.getElementById('dSearch').value.toLowerCase();
+  const filtered = decisionsData.filter(d => {
+    if (!search) return true;
+    return JSON.stringify(d).toLowerCase().includes(search);
+  });
+
+  const byKind = {}, bySev = {}, byOutcome = {};
+  for (const d of filtered) {
+    const k = d.kind || (d.payload && d.payload.kind) || '?';
+    const s = d.severity || (d.payload && d.payload.severity) || '?';
+    const o = d.outcome || '?';
+    byKind[k] = (byKind[k] || 0) + 1;
+    bySev[s] = (bySev[s] || 0) + 1;
+    byOutcome[o] = (byOutcome[o] || 0) + 1;
+  }
+
+  let statsHtml = `<span>${filtered.length} rows</span>`;
+  for (const [k, n] of Object.entries(bySev)) {
+    if (k !== '?' && k !== 'null') statsHtml += ` <span class="sev-${k}" style="padding:1px 6px; border-radius:3px; font-size:0.75rem">${n} ${k}</span>`;
+  }
+  for (const [o, n] of Object.entries(byOutcome)) {
+    if (o !== '?') statsHtml += ` <span class="outcome-${o}">${n} ${o}</span>`;
+  }
+  document.getElementById('dStats').innerHTML = statsHtml;
+
+  document.getElementById('decisionsList').innerHTML = filtered.map((d, i) => renderDecisionCard(d, i)).join('');
+}
+
+function renderDecisionCard(d, idx) {
+  const ts = d.ts || '';
+  const kind = d.kind || (d.payload && d.payload.kind) || '?';
+  const rule = d.rule_id || d.rule || '';
+  const outcome = d.outcome || '';
+  const severity = d.severity || (d.payload && d.payload.severity) || '';
+  const reason = d.reason || (d.payload && d.payload.reason) || '';
+  const fn = d.function || (d.payload && d.payload.function) || '';
+
+  let html = `<div class="card">`;
+  html += `<div class="card-header">`;
+  html += `<span class="card-ts">${esc(fmtTs(ts))}</span>`;
+  html += `<span class="badge kind-tag">${esc(kind)}</span>`;
+  if (severity) html += `<span class="badge sev-${severity}">${severity}</span>`;
+  if (outcome) html += `<span class="outcome-${outcome}" style="font-size:0.8rem; font-weight:600">${esc(outcome)}</span>`;
+  html += `</div>`;
+
+  html += `<div class="card-body">`;
+  if (rule) html += `<strong>${esc(rule)}</strong>`;
+  if (fn) html += ` <span style="color:var(--text-dim)">→ ${esc(fn)}</span>`;
+  if (reason) html += ` — ${esc(reason)}`;
+  html += `</div>`;
+
+  const inputs = d.inputs || (d.payload && d.payload.inputs) || [];
+  if (inputs.length > 0) {
+    html += `<button class="expand-btn" onclick="document.getElementById('inp-${idx}').classList.toggle('open')">▸ ${inputs.length} input(s)</button>`;
+    html += `<div class="inputs-panel" id="inp-${idx}">`;
+    for (const inp of inputs) {
+      const sig = inp.signal || inp.path || '?';
+      const val = inp.value != null ? JSON.stringify(inp.value) : '?';
+      const known = inp.known ? '' : ' <span style="color:var(--red)">[UNKNOWN]</span>';
+      const age = inp.age_s != null ? ` (age ${inp.age_s}s)` : '';
+      html += `<div style="font-size:0.78rem; font-family:var(--mono); color:var(--text-dim)">`;
+      html += `${esc(sig)} = <span style="color:var(--text)">${esc(val)}</span>${known}${age}`;
+      html += `</div>`;
+    }
+    html += `</div>`;
+  }
+
+  const detail = d.detail || (d.payload && d.payload.detail);
+  if (detail && Object.keys(detail).length > 0) {
+    html += `<div class="card-detail">${esc(JSON.stringify(detail))}</div>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+document.getElementById('dSearch').addEventListener('input', renderDecisions);
+
+// ============================================================================
+// SIGNAL HISTORY
+// ============================================================================
+let historyData = [];
+
+async function loadSignalHistory() {
+  const signal = document.getElementById('hSignal').value;
+  if (!signal) { setStatus('Select a signal first', 'err'); return; }
+  setStatus(`Loading history for ${signal}…`, 'msg');
+  try {
+    const data = await apiFetch('signal-history', {
+      signal,
+      limit: document.getElementById('hLimit').value,
+      since: document.getElementById('hSince').value,
+    });
+    historyData = data;
+    renderSignalHistory(signal);
+    setStatus(`${data.length} data points for ${signal}`, 'ok');
+  } catch (e) {
+    setStatus('Error: ' + e.message, 'err');
+  }
+}
+
+function renderSignalHistory(signal) {
+  const points = historyData;
+
+  const values = points.filter(p => p.value != null && typeof p.value === 'number').map(p => p.value);
+  let statsHtml = `<span>${points.length} points</span>`;
+  if (values.length > 0) {
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const avg = values.reduce((a, b) => a + b, 0) / values.length;
+    statsHtml += ` min: <strong>${min.toFixed(2)}</strong>`;
+    statsHtml += ` max: <strong>${max.toFixed(2)}</strong>`;
+    statsHtml += ` avg: <strong>${avg.toFixed(2)}</strong>`;
+    statsHtml += ` range: <strong>${(max - min).toFixed(2)}</strong>`;
+  }
+  document.getElementById('hStats').innerHTML = statsHtml;
+
+  renderChart(signal, points);
+
+  let html = `<table class="hist-table"><thead><tr>
+    <th>Timestamp</th><th>Value</th><th>Rule</th><th>Kind</th><th>Outcome</th><th>Severity</th>
+  </tr></thead><tbody>`;
+  for (const p of points) {
+    const valStr = p.value != null ? JSON.stringify(p.value) : '?';
+    html += `<tr>
+      <td>${esc(fmtTs(p.ts))}</td>
+      <td style="color:var(--text)">${esc(valStr)}</td>
+      <td>${esc(p.rule || p.rule_id || '')}</td>
+      <td>${esc(p.decision_kind || '')}</td>
+      <td class="outcome-${p.outcome || ''}">${esc(p.outcome || '')}</td>
+      <td>${p.severity ? `<span class="badge sev-${p.severity}">${p.severity}</span>` : ''}</td>
+    </tr>`;
+  }
+  html += `</tbody></table>`;
+  document.getElementById('historyTable').innerHTML = html;
+}
+
+function renderChart(signal, points) {
+  const container = document.getElementById('histChart');
+  const numericPoints = points.filter(p => p.value != null && typeof p.value === 'number');
+
+  if (numericPoints.length < 2) {
+    container.innerHTML = `<div class="no-data">Not enough numeric data points for chart (${numericPoints.length} points)</div>`;
+    return;
+  }
+
+  const W = 900, H = 200, PAD = 40;
+  const values = numericPoints.map(p => p.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+
+  const xScale = (W - 2 * PAD) / (numericPoints.length - 1);
+  const yScale = (H - 2 * PAD) / range;
+
+  let pathD = '';
+  numericPoints.forEach((p, i) => {
+    const x = PAD + i * xScale;
+    const y = H - PAD - (p.value - min) * yScale;
+    if (i === 0) pathD += `M ${x} ${y}`;
+    else pathD += ` L ${x} ${y}`;
+  });
+
+  const yLabels = [min, min + range * 0.25, min + range * 0.5, min + range * 0.75, max];
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:${H}px">`;
+  for (const v of yLabels) {
+    const y = H - PAD - (v - min) * yScale;
+    svg += `<line x1="${PAD}" y1="${y}" x2="${W-PAD}" y2="${y}" stroke="#2a2a4a" stroke-width="0.5"/>`;
+    svg += `<text x="${PAD-4}" y="${y+3}" text-anchor="end" fill="#8892b0" font-size="10">${v.toFixed(1)}</text>`;
+  }
+  svg += `<path d="${pathD}" fill="none" stroke="#0ea5e9" stroke-width="1.5"/>`;
+  svg += `<text x="${W/2}" y="14" text-anchor="middle" fill="#e8e8e8" font-size="12">${esc(signal)} — ${numericPoints.length} points</text>`;
+  svg += `</svg>`;
+  container.innerHTML = svg;
+}
+
+// ============================================================================
+// RELAY PROOF
+// ============================================================================
+async function loadRelayProof() {
+  setStatus('Loading relay proof…', 'msg');
+  try {
+    const data = await apiFetch('relay-proof', {
+      function: document.getElementById('rFunction').value,
+      limit: document.getElementById('rLimit').value,
+    });
+
+    const byResult = {};
+    for (const r of data) { byResult[r.result] = (byResult[r.result] || 0) + 1; }
+    let statsHtml = `<span>${data.length} checks</span>`;
+    for (const [res, n] of Object.entries(byResult)) {
+      const cls = res === 'confirmed' ? 'relay-confirmed' : res === 'mismatch' ? 'relay-mismatch' :
+                  res === 'reasserted' ? 'relay-reasserted' : 'relay-unreadable';
+      statsHtml += ` <span class="${cls}">${n} ${res}</span>`;
+    }
+    document.getElementById('rStats').innerHTML = statsHtml;
+
+    let html = data.map(r => {
+      const cls = r.result === 'confirmed' ? 'relay-confirmed' : r.result === 'mismatch' ? 'relay-mismatch' :
+                  r.result === 'reasserted' ? 'relay-reasserted' : 'relay-unreadable';
+      return `<div class="card">
+        <div class="card-header">
+          <span class="card-ts">${esc(fmtTs(r.ts))}</span>
+          <span class="${cls}" style="font-weight:600; font-size:0.85rem">${esc(r.result || '?')}</span>
+        </div>
+        <div class="card-body">
+          <strong>${esc(r.function || '?')}</strong>
+          <span style="color:var(--text-dim)">${esc(r.module || '')}/${esc(r.channel || '')}</span>
+          expected: <span style="color:var(--accent2)">${esc(String(r.expected))}</span>
+          observed: <span style="color:${r.expected === r.observed ? 'var(--green)' : 'var(--red)'}">${esc(String(r.observed))}</span>
+        </div>
+      </div>`;
+    }).join('');
+    document.getElementById('relayList').innerHTML = html || '<div class="no-data">No relay proof data</div>';
+    setStatus(`${data.length} relay checks loaded`, 'ok');
+  } catch (e) {
+    setStatus('Error: ' + e.message, 'err');
+  }
+}
+
+// ============================================================================
+// TIMELINE
+// ============================================================================
+let timelineData = [];
+
+async function loadTimeline() {
+  setStatus('Loading timeline…', 'msg');
+  try {
+    timelineData = await apiFetch('timeline', {
+      rule: document.getElementById('tRule').value,
+      limit: document.getElementById('tLimit').value,
+    });
+    renderTimeline();
+    setStatus(`${timelineData.length} timeline entries loaded`, 'ok');
+  } catch (e) {
+    setStatus('Error: ' + e.message, 'err');
+  }
+}
+
+function renderTimeline() {
+  const search = document.getElementById('tSearch').value.toLowerCase();
+  const filtered = search ? timelineData.filter(d => JSON.stringify(d).toLowerCase().includes(search)) : timelineData;
+
+  let html = filtered.map(r => {
+    const kind = r.event_type || r.kind || '?';
+    const severity = r.severity || '';
+    const rule = r.rule_id || '';
+    const detail = r.detail ? JSON.stringify(r.detail) : '';
+
+    return `<div class="card">
+      <div class="card-header">
+        <span class="card-ts">${esc(fmtTs(r.ts))}</span>
+        <span class="badge kind-tag">${esc(kind)}</span>
+        ${severity ? `<span class="badge sev-${severity}">${severity}</span>` : ''}
+        ${r.outcome ? `<span class="outcome-${r.outcome}" style="font-size:0.8rem">${esc(r.outcome)}</span>` : ''}
+      </div>
+      <div class="card-body">
+        ${rule ? `<strong>${esc(rule)}</strong>` : ''}
+        ${r.function ? ` → ${esc(r.function)}` : ''}
+        ${r.reason ? ` — ${esc(r.reason)}` : ''}
+        ${r.signal ? ` <span style="color:var(--accent2)">${esc(r.signal)}</span>` : ''}
+        ${r.value != null ? ` = ${esc(JSON.stringify(r.value))}` : ''}
+      </div>
+      ${detail ? `<div class="card-detail">${esc(detail)}</div>` : ''}
+    </div>`;
+  }).join('');
+  document.getElementById('timelineList').innerHTML = html || '<div class="no-data">No timeline data</div>';
+}
+
+document.getElementById('tSearch').addEventListener('input', renderTimeline);
+
+// ============================================================================
+// UTILS
+// ============================================================================
+function esc(s) {
+  if (s == null) return '';
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+function fmtTs(ts) {
+  if (!ts) return '—';
+  try {
+    if (typeof ts === 'number') {
+      const d = ts > 1e12 ? new Date(ts) : new Date(ts * 1000);
+      if (!isNaN(d)) return d.toISOString().replace('T', ' ').replace('Z', '').substring(0, 19);
+    }
+    const d = new Date(ts);
+    if (isNaN(d)) return String(ts);
+    return d.toISOString().replace('T', ' ').replace('Z', '').substring(0, 19);
+  } catch { return String(ts); }
+}
+
+function setStatus(msg, type) {
+  const el = document.getElementById('statusMsg');
+  el.className = 'status-' + type;
+  el.textContent = msg;
+}
+
+// Boot
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,1967 @@
+<!DOCTYPE html>
+<!--
+Purpose: Rules Editor — syntax-aware sentence builder for the Ship's Automation rules engine.
+    Reads and writes the same YAML data files the engine uses (rules.yml, signals.yml, engine.yml,
+    io_master.yml). Pick lists derived from live vocabularies; enforces correctness by construction.
+    D-211.
+Version: v3 (2026-11-05) — v3: YAML syntax highlighting in Show YAML preview.
+    v2 (2026-11-05) — Stage 1 (viewer) + Stage 2 (inline editor) + Stage 3 (sentence builder)
+    + Stage 4 (condition-type syntax coloring, D-211) + Stage 5 (step-by-step rule wizard, D-211).
+Scope: STANDALONE UTILITY — laptop/Ship's PC tool.
+Architecture: tools/rules-editor/. A single HTML+JS page; loads YAML via js-yaml from CDN.
+    The engine's own validator (engine check) is called via a local API or CLI before writes.
+Invocation: open index.html in a browser; point it at the data/ directory.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Rules Editor — SV Unladen Swallow 2</title>
+<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+<style>
+:root {
+  --bg: #1a1a2e;
+  --surface: #16213e;
+  --surface2: #0f3460;
+  --text: #e8e8e8;
+  --text-dim: #8892b0;
+  --accent: #e94560;
+  --accent2: #0ea5e9;
+  --green: #22c55e;
+  --yellow: #eab308;
+  --orange: #f97316;
+  --red: #ef4444;
+  --border: #2a2a4a;
+  --mono: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  padding: 1rem;
+}
+h1 { font-size: 1.3rem; margin-bottom: 0.5rem; }
+h1 span { color: var(--accent); }
+
+/* --- toolbar --- */
+.toolbar {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 0.75rem;
+  background: var(--surface);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  border: 1px solid var(--border);
+}
+.toolbar label { font-size: 0.8rem; color: var(--text-dim); }
+.toolbar select, .toolbar input[type="text"] {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.85rem;
+}
+.toolbar input[type="text"] { width: 200px; }
+.toolbar .count {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+/* --- stats bar --- */
+.stats {
+  display: flex;
+  gap: 1rem;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 1rem;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+.stats .stat { display: flex; gap: 0.3rem; align-items: center; }
+.stats .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.dot-live { background: var(--green); }
+.dot-dry { background: var(--yellow); }
+.dot-emergency { background: var(--red); }
+.dot-alarm { background: var(--orange); }
+.dot-notice { background: var(--accent2); }
+.dot-log { background: var(--text-dim); }
+
+/* --- rule cards --- */
+.rule-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+  transition: border-color 0.2s;
+}
+.rule-card:hover { border-color: var(--accent2); }
+.rule-card.severity-EMERGENCY { border-left: 3px solid var(--red); }
+.rule-card.severity-ALARM { border-left: 3px solid var(--orange); }
+.rule-card.severity-NOTICE { border-left: 3px solid var(--accent2); }
+.rule-card.severity-LOG { border-left: 3px solid var(--text-dim); }
+.rule-card.severity-none { border-left: 3px solid var(--border); }
+
+.rule-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+.rule-id {
+  font-family: var(--mono);
+  font-weight: bold;
+  font-size: 0.9rem;
+  color: var(--accent2);
+  min-width: 120px;
+}
+.rule-badges { display: flex; gap: 0.3rem; }
+.badge {
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.badge-live { background: var(--green); color: #000; }
+.badge-dry_run { background: var(--yellow); color: #000; }
+.badge-severity { background: var(--surface2); color: var(--text); }
+.badge-record { background: var(--border); color: var(--text-dim); }
+.badge-clear { background: var(--border); color: var(--text-dim); }
+
+.rule-sentence {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text);
+  margin-bottom: 0.3rem;
+}
+.rule-sentence .kw { color: var(--accent); font-weight: 600; }
+.rule-sentence .sig { color: var(--accent2); font-family: var(--mono); font-size: 0.85rem; }
+.rule-sentence .val { color: var(--green); font-weight: 600; }
+.rule-sentence .dur { color: var(--yellow); }
+.rule-sentence .op { color: var(--orange); }
+.rule-sentence .comb { color: var(--accent); font-style: italic; }
+
+/* --- condition type badges (Stage 4) --- */
+.cond-type-badge {
+  font-size: 0.6rem;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-right: 0.3rem;
+  vertical-align: middle;
+}
+.cond-type-threshold { background: var(--green); color: #000; }
+.cond-type-state { background: var(--accent2); color: #fff; }
+.cond-type-timer { background: var(--yellow); color: #000; }
+.cond-type-rate { background: var(--orange); color: #000; }
+.cond-type-combo { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+.cond-type-diff { background: var(--red); color: #fff; }
+.cond-type-latch { background: var(--accent); color: #fff; }
+.cond-type-active { background: var(--accent); color: #fff; }
+
+.cond-wrap {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin: 1px 0;
+  border-left: 3px solid transparent;
+}
+.cond-wrap-threshold { border-left-color: var(--green); background: rgba(34,197,94,0.08); }
+.cond-wrap-state { border-left-color: var(--accent2); background: rgba(14,165,233,0.08); }
+.cond-wrap-timer { border-left-color: var(--yellow); background: rgba(234,179,8,0.08); }
+.cond-wrap-rate { border-left-color: var(--orange); background: rgba(249,115,22,0.08); }
+.cond-wrap-diff { border-left-color: var(--red); background: rgba(239,68,68,0.08); }
+.cond-wrap-latch { border-left-color: var(--accent); background: rgba(233,69,96,0.08); }
+.cond-wrap-active { border-left-color: var(--accent); background: rgba(233,69,96,0.08); }
+
+/* --- YAML syntax highlighting (Show YAML preview) --- */
+.y-key { color: var(--accent2); }
+.y-num { color: var(--green); }
+.y-bool { color: var(--orange); }
+.y-str { color: var(--yellow); }
+.y-val { color: var(--text); }
+.y-sev { color: var(--red); font-weight: 600; }
+.y-mode { color: var(--green); font-weight: 600; }
+.y-comment { color: var(--text-dim); font-style: italic; }
+
+/* --- wizard (Stage 5) --- */
+#wizard-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  z-index: 1000; justify-content: center; align-items: flex-start; padding-top: 3rem;
+  overflow-y: auto;
+}
+#wizard-overlay.active { display: flex; }
+#wizard-panel {
+  background: var(--surface); border: 1px solid var(--accent2); border-radius: 8px;
+  padding: 1.5rem; max-width: 650px; width: 95%; margin-bottom: 3rem;
+}
+#wizard-panel h2 { font-size: 1.1rem; margin-bottom: 1rem; color: var(--accent2); }
+.wizard-steps {
+  display: flex; gap: 0.3rem; margin-bottom: 1rem; flex-wrap: wrap;
+}
+.wizard-step-dot {
+  width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; font-size: 0.75rem; font-weight: 600;
+  background: var(--bg); color: var(--text-dim); border: 2px solid var(--border);
+}
+.wizard-step-dot.active { border-color: var(--accent2); color: var(--accent2); }
+.wizard-step-dot.done { border-color: var(--green); color: var(--green); background: rgba(34,197,94,0.15); }
+.wizard-step-label { font-size: 0.7rem; color: var(--text-dim); text-align: center; width: 28px; }
+.wizard-step-group { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.wizard-body { min-height: 180px; }
+.wizard-nav { display: flex; gap: 0.5rem; margin-top: 1rem; justify-content: flex-end; }
+.wizard-preview {
+  margin-top: 0.75rem; padding: 0.5rem; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 4px; font-size: 0.8rem;
+  font-family: var(--mono); white-space: pre-wrap; max-height: 250px; overflow: auto;
+}
+
+.rule-purpose {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  font-style: italic;
+  margin-top: 0.2rem;
+}
+.rule-actions {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-top: 0.3rem;
+}
+.rule-actions .action-label { color: var(--accent); }
+
+/* --- message display --- */
+.rule-messages {
+  font-size: 0.8rem;
+  margin-top: 0.3rem;
+  padding-left: 1rem;
+}
+.rule-messages .msg-line {
+  color: var(--text-dim);
+  margin-bottom: 0.15rem;
+}
+.rule-messages .msg-cond { color: var(--accent2); }
+.rule-messages .msg-text { color: var(--text); }
+
+/* --- edit overlay --- */
+.edit-overlay {
+  display: none;
+  background: var(--bg);
+  border: 1px solid var(--accent2);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 0.5rem;
+}
+.edit-overlay.open { display: block; }
+.edit-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+.edit-row label {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  min-width: 80px;
+}
+.edit-row input, .edit-row select, .edit-row textarea {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.85rem;
+  font-family: var(--mono);
+}
+.edit-row textarea { width: 100%; min-height: 60px; resize: vertical; }
+.edit-row input[type="number"] { width: 100px; }
+
+/* --- buttons --- */
+.btn {
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn:hover { border-color: var(--accent2); background: var(--surface2); }
+.btn-primary { background: var(--accent2); color: #fff; border-color: var(--accent2); }
+.btn-primary:hover { background: #0284c7; }
+.btn-danger { background: var(--red); color: #fff; border-color: var(--red); }
+.btn-danger:hover { opacity: 0.8; }
+.btn-sm { padding: 2px 8px; font-size: 0.75rem; }
+.btn-deploy { background: var(--green); color: #000; border-color: var(--green); font-weight: 600; }
+.btn-deploy:hover { background: #16a34a; }
+.btn-deploy:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* --- deploy overlay --- */
+#deployOverlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  z-index: 1000; justify-content: center; align-items: center;
+}
+#deployOverlay.active { display: flex; }
+#deployPanel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 1.5rem; max-width: 500px; width: 90%;
+}
+#deployPanel h3 { margin-bottom: 1rem; }
+#deploySteps { font-size: 0.85rem; font-family: var(--mono); line-height: 2; }
+#deploySteps .step-ok::before { content: '\2713 '; color: var(--green); }
+#deploySteps .step-fail::before { content: '\2717 '; color: var(--red); }
+#deploySteps .step-wait::before { content: '\25CB '; color: var(--text-dim); }
+
+/* --- new rule builder (Stage 3) --- */
+#builder {
+  display: none;
+  background: var(--surface);
+  border: 1px solid var(--accent2);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+#builder.open { display: block; }
+#builder h2 { font-size: 1rem; margin-bottom: 0.75rem; color: var(--accent2); }
+.builder-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+.builder-row label {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  min-width: 100px;
+}
+.builder-row select, .builder-row input {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.85rem;
+}
+.builder-row select { min-width: 200px; }
+.builder-row input { width: 120px; }
+.builder-cond-tree {
+  padding: 0.5rem;
+  margin: 0.5rem 0;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+}
+.cond-node {
+  padding: 0.3rem 0.5rem;
+  margin: 0.2rem 0;
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.cond-node .indent { margin-left: 1.5rem; }
+
+/* --- status bar --- */
+.status-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 0.4rem 1rem;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  font-size: 0.8rem;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  z-index: 100;
+}
+.status-bar .status-msg { color: var(--text-dim); }
+.status-bar .status-ok { color: var(--green); }
+.status-bar .status-err { color: var(--red); }
+
+/* --- backup browser --- */
+#backups {
+  display: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+#backups.open { display: block; }
+#backups h2 { font-size: 1rem; margin-bottom: 0.5rem; }
+.backup-list { max-height: 200px; overflow-y: auto; }
+.backup-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8rem;
+}
+
+/* --- file picker (file:// mode) --- */
+.file-picker {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 0.75rem;
+  background: var(--surface);
+  border: 2px dashed var(--accent2);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+.file-picker label { font-size: 0.8rem; color: var(--text-dim); }
+.file-picker .fp-note {
+  font-size: 0.8rem;
+  color: var(--yellow);
+  width: 100%;
+  margin-bottom: 0.3rem;
+}
+.file-picker input[type="file"] {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+.file-picker input[type="file"]::file-selector-button {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+/* misc */
+.hidden { display: none !important; }
+.mb { margin-bottom: 1rem; }
+body { padding-bottom: 3rem; }
+</style>
+</head>
+<body>
+
+<h1>Rules Editor — <span>SV Unladen Swallow 2</span></h1>
+
+<div class="toolbar">
+  <label>Data path:
+    <input type="text" id="dataPath" value="../../stacks/rules-engine/data" placeholder="path to data/">
+  </label>
+  <button class="btn btn-primary" onclick="loadAll()">Load</button>
+  <label>Filter:
+    <select id="filterMode">
+      <option value="all">All modes</option>
+      <option value="live">Live only</option>
+      <option value="dry_run">Dry-run only</option>
+    </select>
+  </label>
+  <label>Severity:
+    <select id="filterSeverity">
+      <option value="all">All severities</option>
+      <option value="EMERGENCY">EMERGENCY</option>
+      <option value="ALARM">ALARM</option>
+      <option value="NOTICE">NOTICE</option>
+      <option value="LOG">LOG</option>
+      <option value="none">No alarm</option>
+    </select>
+  </label>
+  <label>Search:
+    <input type="text" id="searchBox" placeholder="id, signal, text…">
+  </label>
+  <button class="btn" onclick="toggleBuilder()">+ New Rule</button>
+  <button class="btn btn-primary" onclick="openWizard()">Wizard</button>
+  <button class="btn btn-sm" onclick="toggleBackups()">Backups</button>
+  <button class="btn btn-deploy" id="deployBtn" onclick="startDeploy()" style="display:none">Deploy</button>
+  <span class="count" id="ruleCount"></span>
+</div>
+<div id="deployOverlay">
+  <div id="deployPanel">
+    <h3>Deploying rules.yml</h3>
+    <div id="deploySteps"></div>
+    <div style="margin-top:1rem;text-align:right">
+      <button class="btn" onclick="closeDeploy()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="file-picker hidden" id="filePicker">
+  <div class="fp-note">Opened from filesystem — select YAML files to load:</div>
+  <label>rules.yml: <input type="file" id="fpRules" accept=".yml,.yaml"></label>
+  <label>signals.yml: <input type="file" id="fpSignals" accept=".yml,.yaml"></label>
+  <label>engine.yml: <input type="file" id="fpEngine" accept=".yml,.yaml"></label>
+  <label>io_master.yml: <input type="file" id="fpIo" accept=".yml,.yaml"></label>
+  <button class="btn btn-primary" onclick="loadFromFiles()">Load Files</button>
+</div>
+
+<div class="stats" id="statsBar"></div>
+
+<div id="backups">
+  <h2>Backup Snapshots</h2>
+  <div class="backup-list" id="backupList"></div>
+</div>
+
+<div id="builder">
+  <h2>New Rule Builder</h2>
+  <div class="builder-row">
+    <label>Rule ID:</label>
+    <input type="text" id="newId" placeholder="WF-XXX">
+  </div>
+  <div class="builder-row">
+    <label>Mode:</label>
+    <select id="newMode">
+      <option value="dry_run" selected>dry_run (mandatory for new rules)</option>
+    </select>
+  </div>
+  <div class="builder-row">
+    <label>Purpose:</label>
+    <input type="text" id="newPurpose" style="width:100%" placeholder="what bad thing it catches, for whom">
+  </div>
+  <div class="builder-row">
+    <label>Arm gate (when):</label>
+    <select id="newWhenType">
+      <option value="none">None (always armed)</option>
+      <option value="signal">Signal condition</option>
+    </select>
+  </div>
+  <div id="newWhenOpts" class="hidden builder-cond-tree"></div>
+
+  <div style="margin: 0.5rem 0;">
+    <strong style="font-size:0.85rem; color:var(--accent2)">Condition (if):</strong>
+  </div>
+  <div id="newCondBuilder" class="builder-cond-tree">
+    <div class="builder-row">
+      <label>Type:</label>
+      <select id="newCondType" onchange="updateCondFields()">
+        <option value="leaf">Signal leaf (is/in/above/below/rise/fall/starts/stale)</option>
+        <option value="all">All of… (AND)</option>
+        <option value="any">Any of… (OR)</option>
+        <option value="not">Not</option>
+        <option value="active">Rule active</option>
+        <option value="diff">Diff (|A - B| > threshold)</option>
+        <option value="latch">Latch (set/reset)</option>
+      </select>
+    </div>
+    <div id="condFields"></div>
+  </div>
+
+  <div style="margin: 0.5rem 0;">
+    <strong style="font-size:0.85rem; color:var(--accent2)">Actions (do):</strong>
+  </div>
+  <div class="builder-row">
+    <label>Severity:</label>
+    <select id="newSeverity">
+      <option value="">None (output-only)</option>
+      <option value="EMERGENCY">EMERGENCY</option>
+      <option value="ALARM">ALARM</option>
+      <option value="NOTICE">NOTICE</option>
+      <option value="LOG">LOG</option>
+    </select>
+  </div>
+  <div class="builder-row">
+    <label>Message:</label>
+    <input type="text" id="newMessage" style="width:100%" placeholder="Alarm text with {signal.name} placeholders">
+  </div>
+  <div class="builder-row">
+    <label>Set outputs:</label>
+    <input type="text" id="newSets" style="width:100%" placeholder="io.function: on, io.other: off">
+  </div>
+  <div class="builder-row">
+    <label>Inhibits:</label>
+    <input type="text" id="newInhibits" style="width:80%" placeholder="WF-XXX, WF-YYY">
+  </div>
+  <div class="builder-row">
+    <label>Inhibited by:</label>
+    <input type="text" id="newInhibitedBy" style="width:80%" placeholder="WF-ZZZ">
+  </div>
+  <div class="builder-row">
+    <label>Clear:</label>
+    <select id="newClear">
+      <option value="auto">auto</option>
+      <option value="manual">manual</option>
+    </select>
+  </div>
+  <div class="builder-row">
+    <label>Record:</label>
+    <select id="newRecord">
+      <option value="">default (from severity)</option>
+      <option value="handover">handover</option>
+      <option value="log">log</option>
+      <option value="audit">audit</option>
+    </select>
+  </div>
+  <div class="builder-row">
+    <label>Notify:</label>
+    <input type="text" id="newNotify" style="width:80%" placeholder="Lee, Brownie (empty = by severity)">
+  </div>
+  <div style="margin-top:0.75rem; display:flex; gap:0.5rem;">
+    <button class="btn btn-primary" onclick="buildRule()">Preview YAML</button>
+    <button class="btn" onclick="toggleBuilder()">Cancel</button>
+  </div>
+  <pre id="previewYaml" style="display:none; margin-top:0.5rem; padding:0.5rem; background:var(--bg); border:1px solid var(--border); border-radius:4px; font-size:0.8rem; white-space:pre-wrap; max-height:300px; overflow:auto;"></pre>
+</div>
+
+<div id="wizard-overlay">
+  <div id="wizard-panel">
+    <h2>Rule Wizard — build a rule step by step</h2>
+    <div class="wizard-steps" id="wizardSteps"></div>
+    <div class="wizard-body" id="wizardBody"></div>
+    <div class="wizard-nav" id="wizardNav"></div>
+  </div>
+</div>
+
+<div id="rulesList"></div>
+
+<div class="status-bar">
+  <span class="status-msg" id="statusMsg">Ready — click Load to open data files</span>
+</div>
+
+<script>
+// ============================================================================
+// STATE
+// ============================================================================
+let rules = [];
+let signals = {};
+let engineConfig = {};
+let ioMaster = {};
+let backups = [];
+let dataPath = '';
+
+const SEVERITIES = ['EMERGENCY', 'ALARM', 'NOTICE', 'LOG'];
+const RECORD_LEVELS = ['handover', 'log', 'audit'];
+const CONDITION_TYPES = ['is', 'in', 'above', 'below', 'rise', 'fall', 'starts', 'stale'];
+const COMBINATORS = ['all', 'any', 'not', 'latch', 'active', 'diff'];
+const RULE_KEYS = ['id', 'mode', 'when', 'if', 'do', 'inhibited_by', 'clear', 'override', 'note', 'purpose', 'record'];
+const DO_KEYS = ['alarm', 'message', 'set', 'after_unacked', 'inhibits', 'notify'];
+
+// Known engine-internal signals (from config.py ENGINE_SIGNALS)
+const ENGINE_SIGNALS = [
+  'mode', 'fence.lat', 'fence.lon', 'fence.radius', 'watch.armed', 'watch.awake',
+  'fill.water_port', 'fill.water_stbd', 'fill.fuel_port', 'fill.fuel_stbd',
+  'hot_water', 'restock.fridge', 'restock.engel', 'restock.freezer_aft', 'restock.freezer_fwd',
+  'restock_no.fridge', 'restock_no.engel', 'restock_no.freezer_aft', 'restock_no.freezer_fwd',
+  'modbus.link', 'modbus.s4', 'modbus.s2', 'modbus.s3', 'modbus.s5', 'modbus.s6',
+  'offshore.active', 'offshore.coast_nm'
+];
+
+// Signal prefix -> source key mapping
+const PREFIX_SOURCE = {
+  'sk.': 'path', 'cerbo.': 'topic', 'ssm.': 'field', 'net.': 'url',
+  'host.': 'file', 'cam.': 'channel', 'ais.': 'alr', 'crew.': 'lan',
+  'starlink.': 'dish', 'io.': null
+};
+
+// ============================================================================
+// FILE LOADING — fetch (HTTP) or File API (file://)
+// ============================================================================
+const isFileProtocol = location.protocol === 'file:';
+
+async function loadFile(name) {
+  const path = dataPath + '/' + name;
+  const resp = await fetch(path);
+  if (!resp.ok) throw new Error(`Failed to load ${path}: ${resp.status}`);
+  return resp.text();
+}
+
+function readFileInput(inputId) {
+  return new Promise((resolve, reject) => {
+    const input = document.getElementById(inputId);
+    if (!input.files || !input.files[0]) { reject(new Error(`No file selected for ${inputId}`)); return; }
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(input.files[0]);
+  });
+}
+
+async function loadAll() {
+  if (isFileProtocol) {
+    setStatus('Use the file pickers above to load YAML files', 'msg');
+    return;
+  }
+  dataPath = document.getElementById('dataPath').value.replace(/\/$/, '');
+  await doLoad(
+    () => loadFile('rules.yml'),
+    () => loadFile('signals.yml'),
+    () => loadFile('engine.yml'),
+    async () => {
+      try { return await loadFile('../../../spec/04-Interfaces/io_master.yml'); }
+      catch { try { return await loadFile('../../spec/04-Interfaces/io_master.yml'); } catch { return null; } }
+    }
+  );
+}
+
+async function loadFromFiles() {
+  await doLoad(
+    () => readFileInput('fpRules'),
+    () => readFileInput('fpSignals'),
+    () => readFileInput('fpEngine'),
+    async () => {
+      const inp = document.getElementById('fpIo');
+      if (inp.files && inp.files[0]) return readFileInput('fpIo');
+      return null;
+    }
+  );
+}
+
+async function doLoad(getRules, getSignals, getEngine, getIo) {
+  setStatus('Loading…', 'msg');
+  try {
+    const [rulesText, signalsText, engineText] = await Promise.all([
+      getRules(), getSignals(), getEngine()
+    ]);
+
+    rules = jsyaml.load(rulesText) || [];
+    signals = jsyaml.load(signalsText) || {};
+    engineConfig = jsyaml.load(engineText) || {};
+
+    const ioText = await getIo();
+    if (ioText) {
+      ioMaster = jsyaml.load(ioText) || {};
+    } else {
+      console.warn('io_master.yml not loaded — relay pick lists unavailable');
+    }
+
+    const allSignalNames = getAllSignalNames();
+    setStatus(`Loaded ${rules.length} rules, ${allSignalNames.length} signals`, 'ok');
+    renderStats();
+    renderRules();
+    populatePickLists();
+    showDeployButton();
+  } catch (e) {
+    setStatus('Error: ' + e.message, 'err');
+    console.error(e);
+  }
+}
+
+function getAllSignalNames() {
+  const names = new Set(ENGINE_SIGNALS);
+  if (signals) {
+    for (const [key, val] of Object.entries(signals)) {
+      if (key.startsWith('#') || key === 'version') continue;
+      if (typeof val === 'object' && val !== null) {
+        // signal groups: {sk: {signal_name: {path:...}}}  or flat {signal_name: {path:...}}
+        for (const [skey] of Object.entries(val)) {
+          if (!skey.startsWith('#')) names.add(key + '.' + skey);
+        }
+      }
+    }
+  }
+  // Also gather from rules themselves
+  for (const r of rules) {
+    for (const s of extractSignalsFromRule(r)) names.add(s);
+  }
+  return [...names].sort();
+}
+
+function extractSignalsFromRule(rule) {
+  const sigs = new Set();
+  function walkCond(c) {
+    if (!c || typeof c !== 'object') return;
+    if (Array.isArray(c)) { c.forEach(walkCond); return; }
+    for (const [k, v] of Object.entries(c)) {
+      if (['all', 'any'].includes(k) && Array.isArray(v)) v.forEach(walkCond);
+      else if (k === 'not' || k === 'set' || k === 'reset') walkCond(v);
+      else if (k === 'latch' && typeof v === 'object') { walkCond(v.set); walkCond(v.reset); }
+      else if (k === 'active') { /* rule id, not signal */ }
+      else if (k === 'diff' && typeof v === 'object') { if (v.a) sigs.add(v.a); if (v.b) sigs.add(v.b); }
+      else if (!COMBINATORS.includes(k) && !['if', 'text', 'choose', 'do', 'alarm', 'message',
+               'set', 'after_unacked', 'inhibits', 'notify', 'severity', 'clear_at', 'for',
+               'by', 'within', 'floor', 'at_least', 'in', 'is', 'above', 'below', 'rise',
+               'fall', 'starts', 'stale', 'a', 'b'].includes(k) && k.includes('.')) {
+        sigs.add(k);
+      }
+    }
+  }
+  walkCond(rule.if);
+  walkCond(rule.when);
+  if (rule.do) {
+    if (rule.do.set) for (const k of Object.keys(rule.do.set)) sigs.add(k);
+    if (rule.do.message) walkMessage(rule.do.message, sigs);
+  }
+  return sigs;
+}
+
+function walkMessage(msg, sigs) {
+  if (!msg) return;
+  if (typeof msg === 'string') {
+    const re = /\{(eta:)?([a-z]+\.[A-Za-z0-9_.]+)(?::([^{}]*))?\}/g;
+    let m;
+    while ((m = re.exec(msg)) !== null) sigs.add(m[2]);
+    return;
+  }
+  if (msg.choose && Array.isArray(msg.choose)) {
+    for (const c of msg.choose) {
+      if (c.if) walkCond(c.if);
+      if (c.text) walkMessage(c.text, sigs);
+    }
+  }
+  function walkCond(c) {
+    if (!c || typeof c !== 'object') return;
+    for (const [k, v] of Object.entries(c)) {
+      if (k.includes('.')) sigs.add(k);
+      if (typeof v === 'object') walkCond(v);
+    }
+  }
+}
+
+// ============================================================================
+// CONDITION TYPE CLASSIFICATION (Stage 4 — syntax coloring)
+// ============================================================================
+function classifyCondType(cond) {
+  if (!cond || typeof cond !== 'object') return 'state';
+  if (Array.isArray(cond)) return 'combo';
+  const entries = Object.entries(cond);
+  if (entries.length !== 1) return 'state';
+  const [key, body] = entries[0];
+  if (key === 'all' || key === 'any' || key === 'not') return 'combo';
+  if (key === 'active') return 'active';
+  if (key === 'latch') return 'latch';
+  if (key === 'diff') return 'diff';
+  if (typeof body !== 'object' || body === null) return 'state';
+  if ('above' in body || 'below' in body) return 'threshold';
+  if ('rise' in body || 'fall' in body) return 'rate';
+  if ('starts' in body) return 'rate';
+  if ('stale' in body) return 'timer';
+  if ('is' in body || 'in' in body) return 'state';
+  return 'state';
+}
+
+const COND_TYPE_LABELS = {
+  threshold: 'THRESHOLD', state: 'STATE', timer: 'TIMER', rate: 'RATE',
+  combo: 'COMBO', diff: 'DIFF', latch: 'LATCH', active: 'ACTIVE'
+};
+
+// ============================================================================
+// CONDITION -> SENTENCE RENDERER
+// ============================================================================
+function condToSentence(cond, depth = 0) {
+  if (!cond || typeof cond !== 'object') return esc(String(cond));
+  if (Array.isArray(cond)) return cond.map(c => condToSentence(c, depth)).join(', ');
+
+  const entries = Object.entries(cond);
+  if (entries.length !== 1) return esc(JSON.stringify(cond));
+  const [key, body] = entries[0];
+
+  const ctype = classifyCondType(cond);
+  const badge = `<span class="cond-type-badge cond-type-${ctype}">${COND_TYPE_LABELS[ctype]}</span>`;
+  const wrap = (inner) => `<span class="cond-wrap cond-wrap-${ctype}">${badge}${inner}</span>`;
+
+  // Combinators
+  if (key === 'all') {
+    const parts = body.map(c => condToSentence(c, depth + 1));
+    return `<span class="comb">ALL</span> of [${parts.join(' <span class="op">AND</span> ')}]`;
+  }
+  if (key === 'any') {
+    const parts = body.map(c => condToSentence(c, depth + 1));
+    return `<span class="comb">ANY</span> of [${parts.join(' <span class="op">OR</span> ')}]`;
+  }
+  if (key === 'not') return `<span class="op">NOT</span> (${condToSentence(body, depth + 1)})`;
+  if (key === 'active') return wrap(`<span class="kw">rule</span> <span class="sig">${esc(body)}</span> <span class="op">is active</span>`);
+  if (key === 'latch') {
+    return wrap(`<span class="comb">LATCH</span> set=${condToSentence(body.set, depth+1)} reset=${condToSentence(body.reset, depth+1)}`);
+  }
+  if (key === 'diff') {
+    let s = `<span class="op">|</span><span class="sig">${esc(body.a)}</span> - <span class="sig">${esc(body.b)}</span><span class="op">|</span> <span class="kw">above</span> <span class="val">${body.above}</span>`;
+    if (body.clear_at != null) s += ` <span class="kw">clear at</span> <span class="val">${body.clear_at}</span>`;
+    if (body.for) s += ` <span class="kw">for</span> <span class="dur">${esc(String(body.for))}</span>`;
+    return wrap(s);
+  }
+
+  // Leaf: signal -> opts
+  const signal = key;
+  if (typeof body !== 'object' || body === null) return wrap(`<span class="sig">${esc(signal)}</span> = <span class="val">${esc(String(body))}</span>`);
+
+  let parts = [];
+  parts.push(`<span class="sig">${esc(signal)}</span>`);
+
+  if ('is' in body) parts.push(`<span class="kw">is</span> <span class="val">${esc(String(body.is))}</span>`);
+  if ('in' in body) parts.push(`<span class="kw">in</span> <span class="val">[${body.in.map(v => esc(String(v))).join(', ')}]</span>`);
+  if ('above' in body) parts.push(`<span class="kw">above</span> <span class="val">${body.above}</span>`);
+  if ('below' in body) parts.push(`<span class="kw">below</span> <span class="val">${body.below}</span>`);
+  if ('clear_at' in body) parts.push(`<span class="kw">clear at</span> <span class="val">${body.clear_at}</span>`);
+  if ('rise' in body) {
+    const r = body.rise;
+    let rs = `<span class="kw">rises</span> <span class="val">${r.by}</span> <span class="kw">within</span> <span class="dur">${esc(String(r.within))}</span>`;
+    if (r.floor) rs += ` <span class="kw">floor</span> <span class="dur">${esc(String(r.floor))}</span>`;
+    parts.push(rs);
+  }
+  if ('fall' in body) {
+    const r = body.fall;
+    let rs = `<span class="kw">falls</span> <span class="val">${r.by}</span> <span class="kw">within</span> <span class="dur">${esc(String(r.within))}</span>`;
+    if (r.floor) rs += ` <span class="kw">floor</span> <span class="dur">${esc(String(r.floor))}</span>`;
+    parts.push(rs);
+  }
+  if ('starts' in body) {
+    const s = body.starts;
+    parts.push(`<span class="kw">starts</span> <span class="val">${s.at_least}</span>× <span class="kw">within</span> <span class="dur">${esc(String(s.within))}</span>`);
+  }
+  if ('stale' in body) parts.push(`<span class="kw">stale</span> <span class="dur">${esc(String(body.stale))}</span>`);
+  if ('for' in body) parts.push(`<span class="kw">for</span> <span class="dur">${esc(String(body.for))}</span>`);
+
+  return wrap(parts.join(' '));
+}
+
+function messageToHtml(msg) {
+  if (!msg) return '';
+  if (typeof msg === 'string') return highlightPlaceholders(esc(msg));
+  if (msg.choose && Array.isArray(msg.choose)) {
+    let html = '<div class="rule-messages">';
+    for (const c of msg.choose) {
+      if (c.if) {
+        html += `<div class="msg-line"><span class="msg-cond">IF</span> ${condToSentence(c.if)} → <span class="msg-text">"${highlightPlaceholders(esc(c.text))}"</span></div>`;
+      } else {
+        html += `<div class="msg-line"><span class="msg-cond">DEFAULT</span> → <span class="msg-text">"${highlightPlaceholders(esc(c.text))}"</span></div>`;
+      }
+    }
+    html += '</div>';
+    return html;
+  }
+  return highlightPlaceholders(esc(JSON.stringify(msg)));
+}
+
+function highlightPlaceholders(text) {
+  return text.replace(/\{(eta:)?([a-z]+\.[A-Za-z0-9_.]+)(?::([^{}]*))?\}/g,
+    (m, eta, sig, fmt) => `<span class="sig">{${eta||''}${sig}${fmt ? ':'+fmt : ''}}</span>`);
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ============================================================================
+// STATS
+// ============================================================================
+function renderStats() {
+  const live = rules.filter(r => r.mode === 'live').length;
+  const dry = rules.filter(r => r.mode === 'dry_run').length;
+  const sevCounts = {};
+  for (const s of SEVERITIES) sevCounts[s] = 0;
+  sevCounts.none = 0;
+  for (const r of rules) {
+    const sev = r.do?.alarm?.severity || 'none';
+    sevCounts[sev] = (sevCounts[sev] || 0) + 1;
+  }
+  document.getElementById('statsBar').innerHTML = `
+    <div class="stat"><span class="dot dot-live"></span> ${live} live</div>
+    <div class="stat"><span class="dot dot-dry"></span> ${dry} dry_run</div>
+    <div class="stat">|</div>
+    <div class="stat"><span class="dot dot-emergency"></span> ${sevCounts.EMERGENCY} EMERGENCY</div>
+    <div class="stat"><span class="dot dot-alarm"></span> ${sevCounts.ALARM} ALARM</div>
+    <div class="stat"><span class="dot dot-notice"></span> ${sevCounts.NOTICE} NOTICE</div>
+    <div class="stat"><span class="dot dot-log"></span> ${sevCounts.LOG} LOG</div>
+    <div class="stat">${sevCounts.none} output-only</div>
+  `;
+}
+
+// ============================================================================
+// RULE RENDERING
+// ============================================================================
+function renderRules() {
+  const modeF = document.getElementById('filterMode').value;
+  const sevF = document.getElementById('filterSeverity').value;
+  const search = document.getElementById('searchBox').value.toLowerCase();
+
+  let filtered = rules.filter(r => {
+    if (modeF !== 'all' && r.mode !== modeF) return false;
+    const sev = r.do?.alarm?.severity || 'none';
+    if (sevF !== 'all' && sev !== sevF) return false;
+    if (search) {
+      const blob = JSON.stringify(r).toLowerCase();
+      if (!blob.includes(search)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('ruleCount').textContent = `${filtered.length} / ${rules.length} rules`;
+
+  const container = document.getElementById('rulesList');
+  container.innerHTML = filtered.map((r, i) => renderRuleCard(r, rules.indexOf(r))).join('');
+}
+
+function renderRuleCard(r, idx) {
+  const sev = r.do?.alarm?.severity || 'none';
+  const clear = r.clear || 'auto';
+  const record = r.record || defaultRecord(sev);
+
+  let html = `<div class="rule-card severity-${sev}" id="rule-${idx}">`;
+  html += `<div class="rule-header">`;
+  html += `<span class="rule-id">${esc(r.id)}</span>`;
+  html += `<div class="rule-badges">`;
+  html += `<span class="badge badge-${r.mode}">${r.mode}</span>`;
+  if (sev !== 'none') html += `<span class="badge badge-severity">${sev}</span>`;
+  html += `<span class="badge badge-record">${record}</span>`;
+  if (clear === 'manual') html += `<span class="badge badge-clear">MANUAL clear</span>`;
+  if (r.notify && r.notify.length) html += `<span class="badge badge-clear">→ ${r.notify.join(', ')}</span>`;
+  html += `</div>`;
+  html += `<button class="btn btn-sm" onclick="toggleEdit(${idx})" style="margin-left:auto">Edit</button>`;
+  html += `</div>`;
+
+  // Sentence: WHEN ... IF ... THEN ...
+  html += `<div class="rule-sentence">`;
+  if (r.when) html += `<span class="kw">WHEN</span> ${condToSentence(r.when)} `;
+  html += `<span class="kw">IF</span> ${condToSentence(r.if)}`;
+  html += `</div>`;
+
+  // Actions
+  if (r.do) {
+    let acts = [];
+    if (r.do.alarm) acts.push(`<span class="action-label">alarm:</span> ${sev}`);
+    if (r.do.set) {
+      const sets = Object.entries(r.do.set).map(([k,v]) => `<span class="sig">${esc(k)}</span>=${esc(String(v))}`).join(', ');
+      acts.push(`<span class="action-label">set:</span> ${sets}`);
+    }
+    if (r.do.inhibits) acts.push(`<span class="action-label">inhibits:</span> ${r.do.inhibits.map(i => esc(String(i))).join(', ')}`);
+    if (r.do.after_unacked) {
+      const au = r.do.after_unacked;
+      const delay = Object.entries(au).filter(([k]) => k !== 'set').map(([k,v]) => `${k}=${v}`).join(', ');
+      acts.push(`<span class="action-label">after_unacked:</span> ${delay}`);
+    }
+    if (acts.length) html += `<div class="rule-actions">${acts.join(' · ')}</div>`;
+
+    // Message
+    if (r.do.message) html += messageToHtml(r.do.message);
+  }
+
+  // Inhibited by
+  if (r.inhibited_by) {
+    html += `<div class="rule-actions"><span class="action-label">inhibited by:</span> ${r.inhibited_by.map(i => esc(String(i))).join(', ')}</div>`;
+  }
+
+  // Purpose
+  if (r.purpose) html += `<div class="rule-purpose">${esc(r.purpose)}</div>`;
+
+  // Edit overlay
+  html += renderEditOverlay(r, idx);
+
+  html += `</div>`;
+  return html;
+}
+
+function defaultRecord(sev) {
+  if (sev === 'EMERGENCY' || sev === 'ALARM') return 'handover';
+  return 'audit';
+}
+
+// ============================================================================
+// INLINE EDITOR (Stage 2)
+// ============================================================================
+function renderEditOverlay(r, idx) {
+  const sev = r.do?.alarm?.severity || '';
+  let html = `<div class="edit-overlay" id="edit-${idx}">`;
+
+  html += `<div class="edit-row">
+    <label>Mode:</label>
+    <select id="eMode-${idx}">
+      <option value="dry_run" ${r.mode==='dry_run'?'selected':''}>dry_run</option>
+      <option value="live" ${r.mode==='live'?'selected':''}>live</option>
+    </select>
+  </div>`;
+
+  // Editable thresholds — find numeric values in the condition
+  const thresholds = extractThresholds(r.if);
+  if (thresholds.length) {
+    html += `<div style="margin:0.3rem 0; font-size:0.8rem; color:var(--accent2);">Thresholds:</div>`;
+    for (let t = 0; t < thresholds.length; t++) {
+      html += `<div class="edit-row">
+        <label>${esc(thresholds[t].label)}:</label>
+        <input type="number" step="any" id="eThresh-${idx}-${t}" value="${thresholds[t].value}"
+               data-path="${esc(thresholds[t].path)}">
+      </div>`;
+    }
+  }
+
+  // Message text editing
+  if (r.do?.message && typeof r.do.message === 'string') {
+    html += `<div class="edit-row">
+      <label>Message:</label>
+      <textarea id="eMsg-${idx}">${esc(r.do.message)}</textarea>
+    </div>`;
+  }
+
+  html += `<div class="edit-row">
+    <label>Purpose:</label>
+    <textarea id="ePurpose-${idx}" style="min-height:40px">${esc(r.purpose || '')}</textarea>
+  </div>`;
+
+  html += `<div style="margin-top:0.5rem; display:flex; gap:0.5rem;">
+    <button class="btn btn-primary" onclick="saveEdit(${idx})">Save & Validate</button>
+    <button class="btn" onclick="showYaml(${idx})">Show YAML</button>
+    <button class="btn" onclick="toggleEdit(${idx})">Cancel</button>
+  </div>`;
+
+  html += `<pre id="eYaml-${idx}" style="display:none; margin-top:0.5rem; padding:0.5rem; background:var(--bg); border:1px solid var(--border); border-radius:4px; font-size:0.8rem; white-space:pre-wrap;"></pre>`;
+
+  html += `</div>`;
+  return html;
+}
+
+function extractThresholds(cond, path = '', label = '') {
+  const results = [];
+  if (!cond || typeof cond !== 'object') return results;
+  if (Array.isArray(cond)) {
+    cond.forEach((c, i) => results.push(...extractThresholds(c, path + `[${i}]`, label)));
+    return results;
+  }
+  for (const [k, v] of Object.entries(cond)) {
+    if (k === 'all' || k === 'any') {
+      v.forEach((c, i) => results.push(...extractThresholds(c, path + `.${k}[${i}]`, label)));
+    } else if (k === 'not') {
+      results.push(...extractThresholds(v, path + '.not', label));
+    } else if (k === 'latch') {
+      results.push(...extractThresholds(v.set, path + '.latch.set', 'set'));
+      results.push(...extractThresholds(v.reset, path + '.latch.reset', 'reset'));
+    } else if (k === 'diff') {
+      if (typeof v.above === 'number') results.push({label: `|${v.a}-${v.b}| above`, value: v.above, path: path+'.diff.above'});
+      if (v.clear_at != null) results.push({label: `diff clear_at`, value: v.clear_at, path: path+'.diff.clear_at'});
+    } else if (k.includes('.') && typeof v === 'object') {
+      // signal leaf
+      for (const [opt, val] of Object.entries(v)) {
+        if (opt === 'above' || opt === 'below') results.push({label: `${k} ${opt}`, value: val, path: path+`.${k}.${opt}`});
+        if (opt === 'clear_at') results.push({label: `${k} clear_at`, value: val, path: path+`.${k}.clear_at`});
+        if (opt === 'stale' && typeof val === 'number') results.push({label: `${k} stale`, value: val, path: path+`.${k}.stale`});
+        if (opt === 'rise' || opt === 'fall') {
+          if (typeof val === 'object' && typeof val.by === 'number')
+            results.push({label: `${k} ${opt} by`, value: val.by, path: path+`.${k}.${opt}.by`});
+        }
+        if (opt === 'starts' && typeof val === 'object' && typeof val.at_least === 'number')
+          results.push({label: `${k} starts at_least`, value: val.at_least, path: path+`.${k}.starts.at_least`});
+      }
+    }
+  }
+  return results;
+}
+
+function toggleEdit(idx) {
+  const el = document.getElementById('edit-' + idx);
+  el.classList.toggle('open');
+}
+
+function showYaml(idx) {
+  const pre = document.getElementById('eYaml-' + idx);
+  pre.style.display = pre.style.display === 'none' ? 'block' : 'none';
+  const raw = jsyaml.dump([rules[idx]], {lineWidth: 120, noRefs: true, sortKeys: false});
+  pre.innerHTML = highlightYaml(raw);
+}
+
+function highlightYaml(text) {
+  return text.split('\n').map(line => {
+    const e = (s) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    // Comment
+    if (/^\s*#/.test(line)) return `<span class="y-comment">${e(line)}</span>`;
+    // Key: value
+    const m = line.match(/^(\s*(?:- )?)([A-Za-z_][A-Za-z0-9_.-]*)(:\s*)(.*)/);
+    if (m) {
+      const [, indent, key, colon, val] = m;
+      let vHtml = e(val);
+      if (/^(true|false)$/i.test(val)) vHtml = `<span class="y-bool">${e(val)}</span>`;
+      else if (/^-?\d+(\.\d+)?$/.test(val)) vHtml = `<span class="y-num">${e(val)}</span>`;
+      else if (/^(ALARM|WARNING|NOTICE|EMERGENCY|LOG|CAUTION)$/.test(val)) vHtml = `<span class="y-sev">${e(val)}</span>`;
+      else if (/^(live|dry_run|auto|manual)$/.test(val)) vHtml = `<span class="y-mode">${e(val)}</span>`;
+      else if (val.startsWith("'") || val.startsWith('"')) vHtml = `<span class="y-str">${e(val)}</span>`;
+      else if (val === '>-' || val === '|') vHtml = `<span class="y-str">${e(val)}</span>`;
+      else if (val) vHtml = `<span class="y-val">${e(val)}</span>`;
+      return `${e(indent)}<span class="y-key">${e(key)}</span>${e(colon)}${vHtml}`;
+    }
+    // List item that's just a value
+    const lm = line.match(/^(\s*- )(.*)/);
+    if (lm) return `${e(lm[1])}<span class="y-val">${e(lm[2])}</span>`;
+    return e(line);
+  }).join('\n');
+}
+
+function saveEdit(idx) {
+  const r = rules[idx];
+  const newMode = document.getElementById('eMode-' + idx).value;
+  const newPurpose = document.getElementById('ePurpose-' + idx).value;
+
+  // Apply threshold edits
+  const thresholds = extractThresholds(r.if);
+  for (let t = 0; t < thresholds.length; t++) {
+    const input = document.getElementById(`eThresh-${idx}-${t}`);
+    if (input) {
+      const newVal = parseFloat(input.value);
+      if (!isNaN(newVal) && newVal !== thresholds[t].value) {
+        applyThreshold(r.if, thresholds[t].path, newVal);
+      }
+    }
+  }
+
+  // Apply message edit
+  const msgEl = document.getElementById('eMsg-' + idx);
+  if (msgEl && r.do?.message && typeof r.do.message === 'string') {
+    r.do.message = msgEl.value;
+  }
+
+  r.mode = newMode;
+  r.purpose = newPurpose;
+
+  setStatus(`Updated ${r.id} — rebuild YAML to save`, 'ok');
+  renderRules();
+}
+
+function applyThreshold(cond, path, newVal) {
+  // Walk the path to set the value
+  const parts = path.split('.').filter(Boolean);
+  let obj = cond;
+  // This is a simplified walker — for the full editor we'd need robust path resolution
+  // For now, re-extract and match
+  setNestedThreshold(cond, path, newVal);
+}
+
+function setNestedThreshold(obj, path, val) {
+  // Best-effort path setter for threshold edits
+  if (!obj || typeof obj !== 'object') return false;
+  if (Array.isArray(obj)) {
+    for (let i = 0; i < obj.length; i++) {
+      if (setNestedThreshold(obj[i], path, val)) return true;
+    }
+    return false;
+  }
+  for (const [k, v] of Object.entries(obj)) {
+    if (k === 'all' || k === 'any') {
+      for (const item of v) {
+        if (setNestedThreshold(item, path, val)) return true;
+      }
+    } else if (k === 'diff') {
+      if (path.endsWith('.diff.above')) { obj[k].above = val; return true; }
+      if (path.endsWith('.diff.clear_at')) { obj[k].clear_at = val; return true; }
+    } else if (k.includes('.') && typeof v === 'object') {
+      for (const [opt, ov] of Object.entries(v)) {
+        const target = `.${k}.${opt}`;
+        if (path.endsWith(target) && (opt === 'above' || opt === 'below' || opt === 'clear_at' || opt === 'stale')) {
+          v[opt] = val;
+          return true;
+        }
+        if ((opt === 'rise' || opt === 'fall') && typeof ov === 'object') {
+          if (path.endsWith(`.${k}.${opt}.by`)) { ov.by = val; return true; }
+        }
+        if (opt === 'starts' && typeof ov === 'object') {
+          if (path.endsWith(`.${k}.starts.at_least`)) { ov.at_least = val; return true; }
+        }
+      }
+    }
+    if (typeof v === 'object') {
+      if (setNestedThreshold(v, path, val)) return true;
+    }
+  }
+  return false;
+}
+
+// ============================================================================
+// PICK LISTS (populated after load)
+// ============================================================================
+function populatePickLists() {
+  // Nothing to wire up yet in this version — pick lists are used by the builder
+}
+
+// ============================================================================
+// RULE BUILDER (Stage 3)
+// ============================================================================
+function toggleBuilder() {
+  document.getElementById('builder').classList.toggle('open');
+}
+
+function toggleBackups() {
+  document.getElementById('backups').classList.toggle('open');
+}
+
+function updateCondFields() {
+  const type = document.getElementById('newCondType').value;
+  const container = document.getElementById('condFields');
+  const allSignals = getAllSignalNames();
+  const sigOptions = allSignals.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+
+  if (type === 'leaf') {
+    container.innerHTML = `
+      <div class="builder-row">
+        <label>Signal:</label>
+        <select id="ncSignal">${sigOptions}</select>
+      </div>
+      <div class="builder-row">
+        <label>Test:</label>
+        <select id="ncTest" onchange="updateLeafFields()">
+          ${CONDITION_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}
+        </select>
+      </div>
+      <div id="ncLeafOpts"></div>
+    `;
+    updateLeafFields();
+  } else if (type === 'active') {
+    const ruleIds = rules.map(r => `<option value="${esc(r.id)}">${esc(r.id)}</option>`).join('');
+    container.innerHTML = `
+      <div class="builder-row">
+        <label>Rule ID:</label>
+        <select id="ncActiveRule">${ruleIds}</select>
+      </div>
+    `;
+  } else if (type === 'diff') {
+    container.innerHTML = `
+      <div class="builder-row">
+        <label>Signal A:</label>
+        <select id="ncDiffA">${sigOptions}</select>
+      </div>
+      <div class="builder-row">
+        <label>Signal B:</label>
+        <select id="ncDiffB">${sigOptions}</select>
+      </div>
+      <div class="builder-row">
+        <label>Above:</label>
+        <input type="number" step="any" id="ncDiffAbove" value="0">
+      </div>
+      <div class="builder-row">
+        <label>Clear at:</label>
+        <input type="number" step="any" id="ncDiffClearAt" placeholder="optional">
+      </div>
+      <div class="builder-row">
+        <label>For:</label>
+        <input type="text" id="ncDiffFor" placeholder="e.g. 2m (optional)">
+      </div>
+    `;
+  } else {
+    container.innerHTML = `<div style="font-size:0.8rem; color:var(--text-dim); padding:0.3rem;">
+      For ${type} combinators, compose in YAML directly. Preview will show the structure.
+    </div>`;
+  }
+}
+
+function updateLeafFields() {
+  const test = document.getElementById('ncTest')?.value;
+  const c = document.getElementById('ncLeafOpts');
+  if (!c) return;
+  let html = '';
+  switch(test) {
+    case 'is':
+      html = `<div class="builder-row"><label>Value:</label><input type="text" id="ncIsVal" placeholder="true / false / number"></div>`;
+      break;
+    case 'in':
+      html = `<div class="builder-row"><label>Values:</label><input type="text" id="ncInVals" placeholder="ANCHOR, AWAY, DOCK"></div>`;
+      break;
+    case 'above': case 'below':
+      html = `<div class="builder-row"><label>Threshold:</label><input type="number" step="any" id="ncThreshold"></div>
+              <div class="builder-row"><label>Clear at:</label><input type="number" step="any" id="ncClearAt" placeholder="optional (hysteresis)"></div>`;
+      break;
+    case 'rise': case 'fall':
+      html = `<div class="builder-row"><label>By:</label><input type="number" step="any" id="ncBy"></div>
+              <div class="builder-row"><label>Within:</label><input type="text" id="ncWithin" placeholder="e.g. 30m"></div>
+              <div class="builder-row"><label>Floor:</label><input type="text" id="ncFloor" placeholder="optional (anti-slosh)"></div>`;
+      break;
+    case 'starts':
+      html = `<div class="builder-row"><label>At least:</label><input type="number" id="ncAtLeast" min="1" value="5"></div>
+              <div class="builder-row"><label>Within:</label><input type="text" id="ncStartsWithin" placeholder="e.g. 90s"></div>`;
+      break;
+    case 'stale':
+      html = `<div class="builder-row"><label>Duration:</label><input type="text" id="ncStaleDur" placeholder="e.g. 15m"></div>`;
+      break;
+  }
+  // For: wrapper (applicable to is, in, above, below, rise, fall)
+  if (['is', 'in', 'above', 'below'].includes(test)) {
+    html += `<div class="builder-row"><label>For:</label><input type="text" id="ncFor" placeholder="optional, e.g. 2m"></div>`;
+  }
+  c.innerHTML = html;
+}
+
+function buildCondFromFields() {
+  const type = document.getElementById('newCondType').value;
+
+  if (type === 'active') {
+    return { active: document.getElementById('ncActiveRule').value };
+  }
+
+  if (type === 'diff') {
+    const d = {
+      a: document.getElementById('ncDiffA').value,
+      b: document.getElementById('ncDiffB').value,
+      above: parseFloat(document.getElementById('ncDiffAbove').value)
+    };
+    const ca = document.getElementById('ncDiffClearAt').value;
+    if (ca) d.clear_at = parseFloat(ca);
+    const dur = document.getElementById('ncDiffFor').value;
+    if (dur) d.for = dur;
+    return { diff: d };
+  }
+
+  if (type !== 'leaf') return null;
+
+  const signal = document.getElementById('ncSignal').value;
+  const test = document.getElementById('ncTest').value;
+  const opts = {};
+
+  switch(test) {
+    case 'is': {
+      let v = document.getElementById('ncIsVal').value;
+      if (v === 'true') v = true;
+      else if (v === 'false') v = false;
+      else if (!isNaN(Number(v))) v = Number(v);
+      opts.is = v;
+      break;
+    }
+    case 'in':
+      opts.in = document.getElementById('ncInVals').value.split(',').map(s => {
+        s = s.trim();
+        if (s === 'true') return true;
+        if (s === 'false') return false;
+        if (!isNaN(Number(s))) return Number(s);
+        return s;
+      });
+      break;
+    case 'above':
+      opts.above = parseFloat(document.getElementById('ncThreshold').value);
+      if (document.getElementById('ncClearAt').value) opts.clear_at = parseFloat(document.getElementById('ncClearAt').value);
+      break;
+    case 'below':
+      opts.below = parseFloat(document.getElementById('ncThreshold').value);
+      if (document.getElementById('ncClearAt').value) opts.clear_at = parseFloat(document.getElementById('ncClearAt').value);
+      break;
+    case 'rise': case 'fall':
+      opts[test] = { by: parseFloat(document.getElementById('ncBy').value), within: document.getElementById('ncWithin').value };
+      if (document.getElementById('ncFloor').value) opts[test].floor = document.getElementById('ncFloor').value;
+      break;
+    case 'starts':
+      opts.starts = { at_least: parseInt(document.getElementById('ncAtLeast').value), within: document.getElementById('ncStartsWithin').value };
+      break;
+    case 'stale':
+      opts.stale = document.getElementById('ncStaleDur').value;
+      break;
+  }
+
+  const forVal = document.getElementById('ncFor')?.value;
+  if (forVal) opts.for = forVal;
+
+  return { [signal]: opts };
+}
+
+function buildRule() {
+  const id = document.getElementById('newId').value.trim();
+  if (!id) { setStatus('Rule ID is required', 'err'); return; }
+  if (rules.some(r => r.id === id)) { setStatus(`Rule ${id} already exists`, 'err'); return; }
+
+  const cond = buildCondFromFields();
+  if (!cond) { setStatus('Could not build condition — use YAML for complex combinators', 'err'); return; }
+
+  const rule = { id, mode: 'dry_run' };
+
+  const purpose = document.getElementById('newPurpose').value.trim();
+  if (purpose) rule.purpose = purpose;
+
+  // When gate
+  const whenType = document.getElementById('newWhenType').value;
+  if (whenType === 'signal') {
+    // For now, leave when empty — complex gates need YAML
+  }
+
+  rule.if = cond;
+  rule.do = {};
+
+  const sev = document.getElementById('newSeverity').value;
+  if (sev) rule.do.alarm = { severity: sev };
+
+  const msg = document.getElementById('newMessage').value.trim();
+  if (msg) rule.do.message = msg;
+
+  const sets = document.getElementById('newSets').value.trim();
+  if (sets) {
+    rule.do.set = {};
+    for (const pair of sets.split(',')) {
+      const [k, v] = pair.split(':').map(s => s.trim());
+      if (k && v !== undefined) {
+        rule.do.set[k] = v === 'true' || v === 'on' ? true : v === 'false' || v === 'off' ? false : v;
+      }
+    }
+  }
+
+  const inhibits = document.getElementById('newInhibits').value.trim();
+  if (inhibits) rule.do.inhibits = inhibits.split(',').map(s => s.trim()).filter(Boolean);
+
+  const inhibitedBy = document.getElementById('newInhibitedBy').value.trim();
+  if (inhibitedBy) rule.inhibited_by = inhibitedBy.split(',').map(s => s.trim()).filter(Boolean);
+
+  const clear = document.getElementById('newClear').value;
+  if (clear !== 'auto') rule.clear = clear;
+
+  const record = document.getElementById('newRecord').value;
+  if (record) rule.record = record;
+
+  const notify = document.getElementById('newNotify').value.trim();
+  if (notify) rule.do.notify = notify.split(',').map(s => s.trim()).filter(Boolean);
+
+  // Preview
+  const yaml = jsyaml.dump([rule], {lineWidth: 120, noRefs: true, sortKeys: false});
+  const pre = document.getElementById('previewYaml');
+  pre.style.display = 'block';
+  pre.textContent = yaml;
+
+  setStatus(`Preview of ${id} — review the YAML before adding`, 'ok');
+}
+
+// ============================================================================
+// GENERATE FULL YAML (for saving)
+// ============================================================================
+function generateRulesYaml() {
+  // Preserve the original header comments
+  let header = `# Purpose: The automation rules as data - one row per workflow (08-Workflows), in the rules-schema.md
+#   format. Adding or tuning an alarm = edit a row + reload; no code change (D-043).
+# Version: v137 (EDITED by Rules Editor)
+# Scope: STANDALONE UTILITY today (engine under construction, ALARM); PRODUCTION data once deployed.
+# Architecture: rules engine data file (spec/10-Engine s.2). Parsed by engine/rules.py; guardrails
+#   checked by engine/arbiter.py at load. Signals must be in signals.yml, io functions in io_master.yml.
+#   Exercised on the laptop bench against stacks/cams-sim (module / panel / sensor simulator).
+# Invocation: loaded by the rules engine at start and on reload (\`python -m engine check --data data\`).
+#   Who edits it (Lee directly or a form): OQ-063 -> D-211 (Rules Editor).
+#
+# Units: SignalK SI unless the signal is scaled in signals.yml - temperatures are KELVIN here
+#   (F -> K: (F - 32) * 5/9 + 273.15), SoC / tank levels are % (scaled), RPM is rpm (scaled).
+
+`;
+  return header + jsyaml.dump(rules, {lineWidth: 120, noRefs: true, sortKeys: false, quotingType: '"'});
+}
+
+// ============================================================================
+// STATUS / FILTER EVENTS
+// ============================================================================
+function setStatus(msg, type) {
+  const el = document.getElementById('statusMsg');
+  el.className = 'status-' + type;
+  el.textContent = msg;
+}
+
+// Live filtering
+document.getElementById('filterMode').addEventListener('change', renderRules);
+document.getElementById('filterSeverity').addEventListener('change', renderRules);
+document.getElementById('searchBox').addEventListener('input', renderRules);
+
+// ============================================================================
+// DEPLOY
+// ============================================================================
+function showDeployButton() {
+  if (!isFileProtocol) document.getElementById('deployBtn').style.display = '';
+}
+
+function startDeploy() {
+  const overlay = document.getElementById('deployOverlay');
+  const steps = document.getElementById('deploySteps');
+  overlay.classList.add('active');
+  steps.innerHTML = '<div class="step-wait">Generating YAML…</div>';
+
+  const yaml = generateRulesYaml();
+  steps.innerHTML = '<div class="step-ok">Generated YAML (' + rules.length + ' rules)</div>'
+    + '<div class="step-wait">Sending to deploy API…</div>';
+
+  const deployBase = location.origin + '/deploy';
+  fetch(deployBase + '/api/deploy/rules', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({content: yaml, message: 'Rules editor deploy (' + rules.length + ' rules)'})
+  })
+  .then(r => r.json().then(data => ({status: r.status, data})))
+  .then(({status, data}) => {
+    let html = '<div class="step-ok">Generated YAML (' + rules.length + ' rules)</div>';
+    for (const s of (data.steps || [])) {
+      const cls = s.ok ? 'step-ok' : 'step-fail';
+      html += `<div class="${cls}">${s.step}: ${s.message}</div>`;
+    }
+    if (data.ok) {
+      html += '<div class="step-ok" style="margin-top:0.5rem;font-weight:600">Deploy complete</div>';
+      if (data.rules_count) html += `<div class="step-ok">${data.rules_count} rules active</div>`;
+      setStatus('Deployed successfully', 'ok');
+    } else {
+      html += '<div class="step-fail" style="margin-top:0.5rem;font-weight:600">Deploy failed</div>';
+      if (data.hint) html += `<div style="color:var(--yellow);margin-top:0.5rem">${data.hint}</div>`;
+      setStatus('Deploy failed — see overlay', 'err');
+    }
+    steps.innerHTML = html;
+  })
+  .catch(err => {
+    steps.innerHTML = '<div class="step-ok">Generated YAML</div>'
+      + `<div class="step-fail">Network error: ${err.message}</div>`
+      + '<div style="color:var(--yellow);margin-top:0.5rem">Is the deploy API running? '
+      + '(tools/deploy-api/serve.py)</div>';
+    setStatus('Deploy failed — network error', 'err');
+  });
+}
+
+function closeDeploy() {
+  document.getElementById('deployOverlay').classList.remove('active');
+}
+
+// ============================================================================
+// RULE WIZARD (Stage 5)
+// ============================================================================
+const WIZARD_STEPS = [
+  { id: 'signal', label: 'Signal' },
+  { id: 'condition', label: 'Condition' },
+  { id: 'params', label: 'Params' },
+  { id: 'severity', label: 'Severity' },
+  { id: 'actions', label: 'Actions' },
+  { id: 'review', label: 'Review' }
+];
+
+let wizardState = { step: 0, data: {} };
+
+function openWizard() {
+  if (!rules.length && !Object.keys(signals).length) {
+    setStatus('Load data files first before using the wizard', 'err');
+    return;
+  }
+  wizardState = { step: 0, data: { mode: 'dry_run', clear: 'auto' } };
+  document.getElementById('wizard-overlay').classList.add('active');
+  renderWizard();
+}
+
+function closeWizard() {
+  document.getElementById('wizard-overlay').classList.remove('active');
+}
+
+function renderWizard() {
+  const stepsEl = document.getElementById('wizardSteps');
+  stepsEl.innerHTML = WIZARD_STEPS.map((s, i) => {
+    const cls = i < wizardState.step ? 'done' : i === wizardState.step ? 'active' : '';
+    return `<div class="wizard-step-group"><div class="wizard-step-dot ${cls}">${i+1}</div><div class="wizard-step-label">${s.label}</div></div>`;
+  }).join('');
+
+  const bodyEl = document.getElementById('wizardBody');
+  const navEl = document.getElementById('wizardNav');
+
+  switch (WIZARD_STEPS[wizardState.step].id) {
+    case 'signal': renderWizSignal(bodyEl); break;
+    case 'condition': renderWizCondition(bodyEl); break;
+    case 'params': renderWizParams(bodyEl); break;
+    case 'severity': renderWizSeverity(bodyEl); break;
+    case 'actions': renderWizActions(bodyEl); break;
+    case 'review': renderWizReview(bodyEl); break;
+  }
+
+  let nav = '';
+  if (wizardState.step > 0) nav += `<button class="btn" onclick="wizardBack()">Back</button>`;
+  if (wizardState.step < WIZARD_STEPS.length - 1) nav += `<button class="btn btn-primary" onclick="wizardNext()">Next</button>`;
+  if (wizardState.step === WIZARD_STEPS.length - 1) nav += `<button class="btn btn-primary" onclick="wizardFinish()">Add Rule</button>`;
+  nav += `<button class="btn" onclick="closeWizard()">Cancel</button>`;
+  navEl.innerHTML = nav;
+}
+
+function wizardBack() { wizardState.step = Math.max(0, wizardState.step - 1); renderWizard(); }
+function wizardNext() {
+  if (!validateWizStep()) return;
+  collectWizStep();
+  wizardState.step = Math.min(WIZARD_STEPS.length - 1, wizardState.step + 1);
+  renderWizard();
+}
+
+function validateWizStep() {
+  const step = WIZARD_STEPS[wizardState.step].id;
+  if (step === 'signal') {
+    const sig = document.getElementById('wiz-signal')?.value;
+    if (!sig) { setStatus('Pick a signal', 'err'); return false; }
+  }
+  if (step === 'condition') {
+    const ctype = document.getElementById('wiz-cond-type')?.value;
+    if (!ctype) { setStatus('Pick a condition type', 'err'); return false; }
+  }
+  if (step === 'actions') {
+    const id = document.getElementById('wiz-rule-id')?.value?.trim();
+    if (!id) { setStatus('Rule ID is required', 'err'); return false; }
+    if (rules.some(r => r.id === id)) { setStatus(`Rule ${id} already exists`, 'err'); return false; }
+  }
+  return true;
+}
+
+function collectWizStep() {
+  const step = WIZARD_STEPS[wizardState.step].id;
+  const d = wizardState.data;
+
+  if (step === 'signal') {
+    d.signal = document.getElementById('wiz-signal').value;
+  }
+  if (step === 'condition') {
+    d.condType = document.getElementById('wiz-cond-type').value;
+  }
+  if (step === 'params') {
+    const ct = d.condType;
+    if (ct === 'is') { let v = document.getElementById('wiz-is-val').value; d.condOpts = { is: parseSmartValue(v) }; }
+    else if (ct === 'in') { d.condOpts = { in: document.getElementById('wiz-in-vals').value.split(',').map(s => parseSmartValue(s.trim())) }; }
+    else if (ct === 'above') {
+      d.condOpts = { above: parseFloat(document.getElementById('wiz-threshold').value) };
+      const ca = document.getElementById('wiz-clear-at')?.value; if (ca) d.condOpts.clear_at = parseFloat(ca);
+    } else if (ct === 'below') {
+      d.condOpts = { below: parseFloat(document.getElementById('wiz-threshold').value) };
+      const ca = document.getElementById('wiz-clear-at')?.value; if (ca) d.condOpts.clear_at = parseFloat(ca);
+    } else if (ct === 'rise' || ct === 'fall') {
+      d.condOpts = { [ct]: { by: parseFloat(document.getElementById('wiz-by').value), within: document.getElementById('wiz-within').value } };
+      const fl = document.getElementById('wiz-floor')?.value; if (fl) d.condOpts[ct].floor = fl;
+    } else if (ct === 'starts') {
+      d.condOpts = { starts: { at_least: parseInt(document.getElementById('wiz-at-least').value), within: document.getElementById('wiz-starts-within').value } };
+    } else if (ct === 'stale') {
+      d.condOpts = { stale: document.getElementById('wiz-stale-dur').value };
+    }
+    const forVal = document.getElementById('wiz-for')?.value;
+    if (forVal && d.condOpts) d.condOpts.for = forVal;
+  }
+  if (step === 'severity') {
+    d.severity = document.getElementById('wiz-severity').value;
+    d.message = document.getElementById('wiz-message').value.trim();
+  }
+  if (step === 'actions') {
+    d.ruleId = document.getElementById('wiz-rule-id').value.trim();
+    d.purpose = document.getElementById('wiz-purpose').value.trim();
+    d.sets = document.getElementById('wiz-sets').value.trim();
+    d.inhibits = document.getElementById('wiz-inhibits').value.trim();
+    d.inhibitedBy = document.getElementById('wiz-inhibited-by').value.trim();
+    d.clear = document.getElementById('wiz-clear').value;
+    d.notify = document.getElementById('wiz-notify').value.trim();
+  }
+}
+
+function parseSmartValue(v) {
+  if (v === 'true') return true;
+  if (v === 'false') return false;
+  if (!isNaN(Number(v)) && v !== '') return Number(v);
+  return v;
+}
+
+function renderWizSignal(el) {
+  const allSigs = getAllSignalNames();
+  const prefixes = {};
+  for (const s of allSigs) {
+    const p = s.split('.')[0];
+    if (!prefixes[p]) prefixes[p] = [];
+    prefixes[p].push(s);
+  }
+  const prefixKeys = Object.keys(prefixes).sort();
+  const curPrefix = wizardState.data._filterPrefix || prefixKeys[0] || '';
+  const curSignal = wizardState.data.signal || '';
+
+  let html = `<div style="margin-bottom:0.5rem; font-size:0.85rem; color:var(--text-dim)">Pick the signal this rule watches:</div>`;
+  html += `<div class="builder-row"><label>Prefix:</label>`;
+  html += `<select id="wiz-prefix" onchange="wizFilterSignals()">`;
+  html += prefixKeys.map(p => `<option value="${esc(p)}" ${p===curPrefix?'selected':''}>${esc(p)} (${prefixes[p].length})</option>`).join('');
+  html += `</select></div>`;
+
+  const filteredSigs = prefixes[curPrefix] || allSigs;
+  html += `<div class="builder-row"><label>Signal:</label>`;
+  html += `<select id="wiz-signal" style="min-width:300px">`;
+  html += filteredSigs.map(s => `<option value="${esc(s)}" ${s===curSignal?'selected':''}>${esc(s)}</option>`).join('');
+  html += `</select></div>`;
+
+  el.innerHTML = html;
+}
+
+function wizFilterSignals() {
+  const prefix = document.getElementById('wiz-prefix').value;
+  wizardState.data._filterPrefix = prefix;
+  wizardState.data.signal = '';
+  renderWizard();
+}
+
+function renderWizCondition(el) {
+  const sig = wizardState.data.signal || '(none)';
+  const curType = wizardState.data.condType || 'is';
+  const types = [
+    { val: 'is', label: 'is (equals a value)', badge: 'state' },
+    { val: 'in', label: 'in (one of several values)', badge: 'state' },
+    { val: 'above', label: 'above (exceeds threshold)', badge: 'threshold' },
+    { val: 'below', label: 'below (drops under threshold)', badge: 'threshold' },
+    { val: 'rise', label: 'rise (increases by amount within time)', badge: 'rate' },
+    { val: 'fall', label: 'fall (decreases by amount within time)', badge: 'rate' },
+    { val: 'starts', label: 'starts (restarts N times within time)', badge: 'rate' },
+    { val: 'stale', label: 'stale (no update for duration)', badge: 'timer' }
+  ];
+  let html = `<div style="margin-bottom:0.5rem; font-size:0.85rem; color:var(--text-dim)">Condition type for <span class="sig">${esc(sig)}</span>:</div>`;
+  html += `<div style="display:flex; flex-direction:column; gap:0.3rem;">`;
+  for (const t of types) {
+    const checked = t.val === curType ? 'checked' : '';
+    html += `<label style="display:flex; align-items:center; gap:0.5rem; padding:0.3rem 0.5rem; border-radius:4px; cursor:pointer; background:${t.val===curType?'var(--surface2)':'transparent'}">
+      <input type="radio" name="wiz-cond-type" value="${t.val}" ${checked} onchange="document.getElementById('wiz-cond-type').value=this.value">
+      <span class="cond-type-badge cond-type-${t.badge}">${COND_TYPE_LABELS[t.badge]}</span>
+      <span style="font-size:0.85rem">${esc(t.label)}</span>
+    </label>`;
+  }
+  html += `</div>`;
+  html += `<input type="hidden" id="wiz-cond-type" value="${esc(curType)}">`;
+  el.innerHTML = html;
+}
+
+function renderWizParams(el) {
+  const ct = wizardState.data.condType || 'is';
+  const opts = wizardState.data.condOpts || {};
+  let html = `<div style="margin-bottom:0.5rem; font-size:0.85rem; color:var(--text-dim)">Parameters for <span class="cond-type-badge cond-type-${classifyCondType({[wizardState.data.signal]: {[ct]: true}})}">${ct.toUpperCase()}</span> on <span class="sig">${esc(wizardState.data.signal)}</span>:</div>`;
+
+  switch (ct) {
+    case 'is':
+      html += `<div class="builder-row"><label>Value:</label><input type="text" id="wiz-is-val" value="${esc(String(opts.is||''))}" placeholder="true / false / number"></div>`;
+      break;
+    case 'in':
+      html += `<div class="builder-row"><label>Values:</label><input type="text" id="wiz-in-vals" style="width:100%" value="${opts.in ? opts.in.join(', ') : ''}" placeholder="ANCHOR, AWAY, DOCK"></div>`;
+      break;
+    case 'above': case 'below':
+      html += `<div class="builder-row"><label>Threshold:</label><input type="number" step="any" id="wiz-threshold" value="${opts[ct]||''}"></div>`;
+      html += `<div class="builder-row"><label>Clear at:</label><input type="number" step="any" id="wiz-clear-at" value="${opts.clear_at||''}" placeholder="hysteresis (optional)"></div>`;
+      break;
+    case 'rise': case 'fall':
+      html += `<div class="builder-row"><label>By:</label><input type="number" step="any" id="wiz-by" value="${opts[ct]?.by||''}"></div>`;
+      html += `<div class="builder-row"><label>Within:</label><input type="text" id="wiz-within" value="${opts[ct]?.within||''}" placeholder="e.g. 30m"></div>`;
+      html += `<div class="builder-row"><label>Floor:</label><input type="text" id="wiz-floor" value="${opts[ct]?.floor||''}" placeholder="anti-slosh (optional)"></div>`;
+      break;
+    case 'starts':
+      html += `<div class="builder-row"><label>At least:</label><input type="number" id="wiz-at-least" min="1" value="${opts.starts?.at_least||5}"></div>`;
+      html += `<div class="builder-row"><label>Within:</label><input type="text" id="wiz-starts-within" value="${opts.starts?.within||''}" placeholder="e.g. 90s"></div>`;
+      break;
+    case 'stale':
+      html += `<div class="builder-row"><label>Duration:</label><input type="text" id="wiz-stale-dur" value="${opts.stale||''}" placeholder="e.g. 15m"></div>`;
+      break;
+  }
+  if (['is', 'in', 'above', 'below'].includes(ct)) {
+    html += `<div class="builder-row"><label>For:</label><input type="text" id="wiz-for" value="${opts.for||''}" placeholder="hold time (optional, e.g. 2m)"></div>`;
+  }
+  el.innerHTML = html;
+}
+
+function renderWizSeverity(el) {
+  const d = wizardState.data;
+  let html = `<div style="margin-bottom:0.5rem; font-size:0.85rem; color:var(--text-dim)">How severe is this condition?</div>`;
+  const sevs = [
+    { val: 'EMERGENCY', desc: 'Immediate danger — phones + horns + all crew', dot: 'dot-emergency' },
+    { val: 'ALARM', desc: 'Something wrong — phones + panel', dot: 'dot-alarm' },
+    { val: 'NOTICE', desc: 'Worth knowing — Lee by phone', dot: 'dot-notice' },
+    { val: 'LOG', desc: 'Record only — ship\'s log', dot: 'dot-log' },
+    { val: '', desc: 'Output-only — set relays, no alarm', dot: '' }
+  ];
+  html += `<div style="display:flex; flex-direction:column; gap:0.3rem; margin-bottom:0.75rem;">`;
+  for (const s of sevs) {
+    const checked = (d.severity||'') === s.val ? 'checked' : '';
+    html += `<label style="display:flex; align-items:center; gap:0.5rem; padding:0.3rem 0.5rem; border-radius:4px; cursor:pointer; background:${(d.severity||'')===s.val?'var(--surface2)':'transparent'}">
+      <input type="radio" name="wiz-severity" value="${s.val}" ${checked} onchange="document.getElementById('wiz-severity').value=this.value">
+      ${s.dot ? `<span class="dot ${s.dot}"></span>` : ''}
+      <span style="font-size:0.85rem">${s.val || 'None'} — ${esc(s.desc)}</span>
+    </label>`;
+  }
+  html += `</div>`;
+  html += `<input type="hidden" id="wiz-severity" value="${esc(d.severity||'')}">`;
+  html += `<div class="builder-row"><label>Message:</label><input type="text" id="wiz-message" style="width:100%" value="${esc(d.message||'')}" placeholder="Alarm text with {signal.name} placeholders"></div>`;
+  el.innerHTML = html;
+}
+
+function renderWizActions(el) {
+  const d = wizardState.data;
+  const nextId = suggestNextId();
+  let html = `<div style="margin-bottom:0.5rem; font-size:0.85rem; color:var(--text-dim)">Rule identity and outputs:</div>`;
+  html += `<div class="builder-row"><label>Rule ID:</label><input type="text" id="wiz-rule-id" value="${esc(d.ruleId||nextId)}" placeholder="WF-XXX"></div>`;
+  html += `<div class="builder-row"><label>Purpose:</label><input type="text" id="wiz-purpose" style="width:100%" value="${esc(d.purpose||'')}" placeholder="what bad thing it catches, for whom"></div>`;
+  html += `<div class="builder-row"><label>Set outputs:</label><input type="text" id="wiz-sets" style="width:100%" value="${esc(d.sets||'')}" placeholder="io.function: on, io.other: off"></div>`;
+  html += `<div class="builder-row"><label>Inhibits:</label><input type="text" id="wiz-inhibits" style="width:80%" value="${esc(d.inhibits||'')}" placeholder="WF-XXX, WF-YYY"></div>`;
+  html += `<div class="builder-row"><label>Inhibited by:</label><input type="text" id="wiz-inhibited-by" style="width:80%" value="${esc(d.inhibitedBy||'')}" placeholder="WF-ZZZ"></div>`;
+  html += `<div class="builder-row"><label>Clear:</label><select id="wiz-clear"><option value="auto" ${d.clear==='auto'?'selected':''}>auto</option><option value="manual" ${d.clear==='manual'?'selected':''}>manual</option></select></div>`;
+  html += `<div class="builder-row"><label>Notify:</label><input type="text" id="wiz-notify" style="width:80%" value="${esc(d.notify||'')}" placeholder="Lee, Brownie (empty = by severity)"></div>`;
+  el.innerHTML = html;
+}
+
+function suggestNextId() {
+  const ids = rules.map(r => r.id);
+  const nums = ids.map(id => { const m = id.match(/^WF-(\d+)/); return m ? parseInt(m[1]) : 0; });
+  const max = Math.max(...nums, 0);
+  return `WF-${max + 1}`;
+}
+
+function renderWizReview(el) {
+  collectWizStep();
+  const rule = buildWizardRule();
+  const yaml = jsyaml.dump([rule], { lineWidth: 120, noRefs: true, sortKeys: false });
+  const sentence = condToSentence(rule.if);
+
+  let html = `<div style="margin-bottom:0.5rem; font-size:0.85rem; color:var(--text-dim)">Review your rule before adding:</div>`;
+  html += `<div class="rule-card severity-${rule.do?.alarm?.severity||'none'}" style="margin-bottom:0.75rem;">`;
+  html += `<div class="rule-header"><span class="rule-id">${esc(rule.id)}</span>`;
+  html += `<span class="badge badge-dry_run">dry_run</span>`;
+  if (rule.do?.alarm?.severity) html += ` <span class="badge badge-severity">${rule.do.alarm.severity}</span>`;
+  html += `</div>`;
+  html += `<div class="rule-sentence"><span class="kw">IF</span> ${sentence}</div>`;
+  if (rule.purpose) html += `<div class="rule-purpose">${esc(rule.purpose)}</div>`;
+  html += `</div>`;
+  html += `<div style="font-size:0.8rem; color:var(--text-dim); margin-bottom:0.3rem">Generated YAML:</div>`;
+  html += `<div class="wizard-preview">${esc(yaml)}</div>`;
+  el.innerHTML = html;
+}
+
+function buildWizardRule() {
+  const d = wizardState.data;
+  const rule = { id: d.ruleId || 'WF-NEW', mode: 'dry_run' };
+  if (d.purpose) rule.purpose = d.purpose;
+
+  const cond = {};
+  if (d.condOpts) {
+    cond[d.signal] = { ...d.condOpts };
+  } else {
+    cond[d.signal] = { is: true };
+  }
+  rule.if = cond;
+  rule.do = {};
+
+  if (d.severity) rule.do.alarm = { severity: d.severity };
+  if (d.message) rule.do.message = d.message;
+  if (d.sets) {
+    rule.do.set = {};
+    for (const pair of d.sets.split(',')) {
+      const [k, v] = pair.split(':').map(s => s.trim());
+      if (k && v !== undefined) rule.do.set[k] = v === 'true' || v === 'on' ? true : v === 'false' || v === 'off' ? false : v;
+    }
+  }
+  if (d.inhibits) rule.do.inhibits = d.inhibits.split(',').map(s => s.trim()).filter(Boolean);
+  if (d.inhibitedBy) rule.inhibited_by = d.inhibitedBy.split(',').map(s => s.trim()).filter(Boolean);
+  if (d.clear !== 'auto') rule.clear = d.clear;
+  if (d.notify) rule.do.notify = d.notify.split(',').map(s => s.trim()).filter(Boolean);
+  return rule;
+}
+
+function wizardFinish() {
+  collectWizStep();
+  const rule = buildWizardRule();
+  if (rules.some(r => r.id === rule.id)) {
+    setStatus(`Rule ${rule.id} already exists`, 'err');
+    return;
+  }
+  rules.push(rule);
+  closeWizard();
+  renderStats();
+  renderRules();
+  setStatus(`Added ${rule.id} (dry_run) via wizard — review and deploy when ready`, 'ok');
+}
+
+// ============================================================================
+// KEYBOARD SHORTCUTS
+// ============================================================================
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'f') {
+    e.preventDefault();
+    document.getElementById('searchBox').focus();
+  }
+  if (e.key === 'Escape') {
+    closeWizard();
+    closeDeploy();
+  }
+});
+
+// Show file pickers on file:// protocol, or try auto-load on http
+window.addEventListener('DOMContentLoaded', () => {
+  if (isFileProtocol) {
+    document.getElementById('filePicker').classList.remove('hidden');
+    setStatus('Opened from filesystem — pick the YAML files above and click Load Files', 'msg');
+  } else {
+    setStatus('Click Load to open data files, or adjust the data path first', 'msg');
+  }
+});
+</script>
+</body>
+</html>

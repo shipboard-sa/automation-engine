@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<!--
+Purpose: I/O Master Editor — viewer and inline editor for io_master.yml, the relay/DI/panel master
+    table for Ship's Automation. Renders every channel as a human-readable card with state badges,
+    class badges, module grouping. Full device library: shows every physical slot in the environment,
+    including unassigned and reserved slots not yet in io_master.yml. Inline editing of state, class,
+    today/to_be text, wf references.
+Version: v3 (2026-11-05) - v3: auto-create io.* signal on DI/AI port assignment; loads
+    signals.yml alongside io_master.yml, deploys both files (D-211).
+    v2 (2026-11-05) - v2: full device library view (every physical slot, unassigned slots
+    generated); reserved + unassigned states added (D-211).
+Scope: STANDALONE UTILITY — laptop/Ship's PC tool.
+Architecture: tools/io-editor/. A single HTML+JS page; loads YAML via js-yaml from CDN.
+Invocation: serve SwallowAutomation over HTTP and open /tools/io-editor/index.html.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>I/O Master Editor — SV Unladen Swallow 2</title>
+<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+<style>
+:root {
+  --bg: #1a1a2e;
+  --surface: #16213e;
+  --surface2: #0f3460;
+  --text: #e8e8e8;
+  --text-dim: #8892b0;
+  --accent: #e94560;
+  --accent2: #0ea5e9;
+  --green: #22c55e;
+  --yellow: #eab308;
+  --orange: #f97316;
+  --red: #ef4444;
+  --purple: #a855f7;
+  --border: #2a2a4a;
+  --mono: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  padding: 1rem;
+  padding-bottom: 3rem;
+}
+h1 { font-size: 1.3rem; margin-bottom: 0.5rem; }
+h1 span { color: var(--accent); }
+h2 { font-size: 1rem; color: var(--accent2); margin: 0.75rem 0 0.4rem; }
+
+.toolbar {
+  display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;
+  padding: 0.75rem; background: var(--surface); border-radius: 8px;
+  margin-bottom: 1rem; border: 1px solid var(--border);
+}
+.toolbar label { font-size: 0.8rem; color: var(--text-dim); }
+.toolbar select, .toolbar input[type="text"] {
+  background: var(--bg); color: var(--text); border: 1px solid var(--border);
+  border-radius: 4px; padding: 4px 8px; font-size: 0.85rem;
+}
+.toolbar input[type="text"] { width: 200px; }
+.toolbar .count { margin-left: auto; font-size: 0.85rem; color: var(--text-dim); }
+
+.stats {
+  display: flex; gap: 1rem; padding: 0.5rem 0.75rem; margin-bottom: 1rem;
+  font-size: 0.8rem; color: var(--text-dim); flex-wrap: wrap;
+}
+.stats .stat { display: flex; gap: 0.3rem; align-items: center; }
+.stats .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+/* module cards */
+.module-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 0.5rem 0.75rem; margin-bottom: 0.5rem;
+}
+.module-card .mod-name { font-family: var(--mono); font-weight: bold; color: var(--accent2); }
+.module-card .mod-what { font-size: 0.8rem; color: var(--text-dim); margin-top: 0.2rem; }
+
+/* channel cards */
+.ch-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 0.6rem 0.75rem; margin-bottom: 0.4rem; transition: border-color 0.2s;
+}
+.ch-card:hover { border-color: var(--accent2); }
+.ch-card.state-live { border-left: 3px solid var(--green); }
+.ch-card.state-verified { border-left: 3px solid var(--yellow); }
+.ch-card.state-unverified { border-left: 3px solid var(--text-dim); }
+.ch-card.state-reserved { border-left: 3px solid var(--purple); }
+.ch-card.state-unassigned { border-left: 3px solid var(--border); opacity: 0.7; }
+
+.ch-header {
+  display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem; flex-wrap: wrap;
+}
+.ch-id { font-family: var(--mono); font-weight: bold; font-size: 0.9rem; color: var(--accent2); min-width: 80px; }
+.ch-fn { font-family: var(--mono); font-size: 0.85rem; color: var(--text); }
+
+.badge {
+  font-size: 0.65rem; padding: 1px 6px; border-radius: 3px; font-weight: 600; text-transform: uppercase;
+}
+.badge-live { background: var(--green); color: #000; }
+.badge-verified { background: var(--yellow); color: #000; }
+.badge-unverified { background: var(--text-dim); color: #000; }
+.badge-reserved { background: var(--purple); color: #fff; }
+.badge-unassigned { background: var(--border); color: var(--text-dim); }
+.badge-PROTECT { background: var(--red); color: #fff; }
+.badge-ASSIST { background: var(--orange); color: #000; }
+.badge-INFORM { background: var(--accent2); color: #fff; }
+.badge-SAFETY { background: var(--red); color: #fff; }
+.badge-MONITORING { background: var(--surface2); color: var(--text); }
+.badge-hold { background: var(--accent); color: #fff; }
+.badge-no_test { background: var(--border); color: var(--text-dim); }
+.badge-wf { background: var(--surface2); color: var(--accent2); }
+
+.ch-texts { font-size: 0.8rem; color: var(--text-dim); margin-top: 0.2rem; }
+.ch-texts .label { color: var(--accent); font-weight: 600; }
+
+/* edit overlay */
+.edit-overlay {
+  display: none; background: var(--bg); border: 1px solid var(--accent2);
+  border-radius: 8px; padding: 0.75rem; margin-top: 0.4rem;
+}
+.edit-overlay.open { display: block; }
+.edit-row {
+  display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.4rem; flex-wrap: wrap;
+}
+.edit-row label { font-size: 0.8rem; color: var(--text-dim); min-width: 80px; }
+.edit-row input, .edit-row select, .edit-row textarea {
+  background: var(--surface); color: var(--text); border: 1px solid var(--border);
+  border-radius: 4px; padding: 4px 8px; font-size: 0.85rem; font-family: var(--mono);
+}
+.edit-row textarea { width: 100%; min-height: 50px; resize: vertical; }
+
+/* new row builder */
+#builder {
+  display: none; background: var(--surface); border: 1px solid var(--accent2);
+  border-radius: 8px; padding: 1rem; margin-bottom: 1rem;
+}
+#builder.open { display: block; }
+.builder-row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; }
+.builder-row label { font-size: 0.8rem; color: var(--text-dim); min-width: 100px; }
+.builder-row select, .builder-row input {
+  background: var(--bg); color: var(--text); border: 1px solid var(--border);
+  border-radius: 4px; padding: 4px 8px; font-size: 0.85rem;
+}
+
+.btn {
+  padding: 4px 12px; border: 1px solid var(--border); border-radius: 4px;
+  background: var(--surface); color: var(--text); font-size: 0.8rem; cursor: pointer;
+}
+.btn:hover { border-color: var(--accent2); background: var(--surface2); }
+.btn-primary { background: var(--accent2); color: #fff; border-color: var(--accent2); }
+.btn-primary:hover { background: #0284c7; }
+.btn-sm { padding: 2px 8px; font-size: 0.75rem; }
+.btn-deploy { background: var(--green); color: #000; border-color: var(--green); font-weight: 600; }
+.btn-deploy:hover { background: #16a34a; }
+.btn-deploy:disabled { opacity: 0.5; cursor: not-allowed; }
+#deployOverlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  z-index: 1000; justify-content: center; align-items: center;
+}
+#deployOverlay.active { display: flex; }
+#deployPanel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 1.5rem; max-width: 500px; width: 90%;
+}
+#deployPanel h3 { margin-bottom: 1rem; }
+#deploySteps { font-size: 0.85rem; font-family: var(--mono); line-height: 2; }
+#deploySteps .step-ok::before { content: '\2713 '; color: var(--green); }
+#deploySteps .step-fail::before { content: '\2717 '; color: var(--red); }
+#deploySteps .step-wait::before { content: '\25CB '; color: var(--text-dim); }
+
+.status-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; padding: 0.4rem 1rem;
+  background: var(--surface); border-top: 1px solid var(--border); font-size: 0.8rem;
+  display: flex; gap: 1rem; align-items: center; z-index: 100;
+}
+.status-bar .status-msg { color: var(--text-dim); }
+.status-bar .status-ok { color: var(--green); }
+.status-bar .status-err { color: var(--red); }
+.section-header { font-size: 0.9rem; color: var(--accent); margin: 0.75rem 0 0.3rem; font-weight: 600; }
+.module-header { font-size: 0.85rem; color: var(--accent2); margin: 0.5rem 0 0.2rem; font-weight: 600; font-family: var(--mono); }
+</style>
+</head>
+<body>
+
+<h1>I/O Master Editor — <span>SV Unladen Swallow 2</span></h1>
+
+<div class="toolbar">
+  <label>I/O master:
+    <input type="text" id="dataPath" value="../../spec/04-Interfaces" placeholder="path to io_master.yml">
+  </label>
+  <label>Signals:
+    <input type="text" id="signalsPath" value="../../stacks/rules-engine/data" placeholder="path to signals.yml">
+  </label>
+  <button class="btn btn-primary" onclick="loadAll()">Load</button>
+  <label>Module:
+    <select id="filterModule"><option value="all">All modules</option></select>
+  </label>
+  <label>State:
+    <select id="filterState">
+      <option value="all">All states</option>
+      <option value="live">Live</option>
+      <option value="verified">Verified</option>
+      <option value="unverified">Unverified</option>
+      <option value="reserved">Reserved</option>
+      <option value="unassigned">Unassigned</option>
+      <option value="assigned">Assigned (all)</option>
+    </select>
+  </label>
+  <label>Class:
+    <select id="filterClass">
+      <option value="all">All classes</option>
+      <option value="PROTECT">PROTECT</option>
+      <option value="ASSIST">ASSIST</option>
+      <option value="INFORM">INFORM</option>
+    </select>
+  </label>
+  <label>Section:
+    <select id="filterSection">
+      <option value="all">All sections</option>
+      <option value="relays">Relays (DO)</option>
+      <option value="inputs">Inputs (DI)</option>
+      <option value="analog">Analog (AI)</option>
+      <option value="panel">Panel (AL)</option>
+    </select>
+  </label>
+  <label>Search:
+    <input type="text" id="searchBox" placeholder="function, channel, text…">
+  </label>
+  <button class="btn" onclick="toggleBuilder()">+ New Row</button>
+  <button class="btn btn-deploy" id="deployBtn" onclick="startDeploy()" style="display:none">Deploy</button>
+  <span class="count" id="rowCount"></span>
+</div>
+<div id="deployOverlay">
+  <div id="deployPanel">
+    <h3>Deploying io_master.yml</h3>
+    <div id="deploySteps"></div>
+    <div style="margin-top:1rem;text-align:right">
+      <button class="btn" onclick="closeDeploy()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="stats" id="statsBar"></div>
+
+<div id="builder">
+  <h2>New I/O Row</h2>
+  <div class="builder-row">
+    <label>Section:</label>
+    <select id="newSection">
+      <option value="relays">Relay (DO)</option>
+      <option value="inputs">Input (DI)</option>
+      <option value="analog">Analog (AI)</option>
+    </select>
+  </div>
+  <div class="builder-row">
+    <label>Module:</label>
+    <select id="newModule"></select>
+  </div>
+  <div class="builder-row">
+    <label>Channel #:</label>
+    <input type="number" id="newChNum" min="1" max="16" value="1">
+  </div>
+  <div class="builder-row">
+    <label>Function:</label>
+    <input type="text" id="newFunction" placeholder="e.g. yanmar_kill_fire" style="width:300px">
+  </div>
+  <div class="builder-row">
+    <label>Class:</label>
+    <select id="newClass">
+      <option value="INFORM">INFORM</option>
+      <option value="ASSIST">ASSIST</option>
+      <option value="PROTECT">PROTECT</option>
+    </select>
+  </div>
+  <div class="builder-row">
+    <label>Today:</label>
+    <textarea id="newToday" style="width:100%; min-height:40px" placeholder="current state description"></textarea>
+  </div>
+  <div class="builder-row">
+    <label>To-be:</label>
+    <textarea id="newToBe" style="width:100%; min-height:40px" placeholder="CAMS 1.5 design"></textarea>
+  </div>
+  <div style="margin-top:0.5rem; display:flex; gap:0.5rem;">
+    <button class="btn btn-primary" onclick="addRow()">Preview YAML</button>
+    <button class="btn" onclick="toggleBuilder()">Cancel</button>
+  </div>
+  <pre id="previewYaml" style="display:none; margin-top:0.5rem; padding:0.5rem; background:var(--bg); border:1px solid var(--border); border-radius:4px; font-size:0.8rem; white-space:pre-wrap; max-height:200px; overflow:auto;"></pre>
+</div>
+
+<div id="modulesSection"></div>
+<div id="rowsList"></div>
+
+<div class="status-bar">
+  <span class="status-msg" id="statusMsg">Ready — click Load to open io_master.yml</span>
+</div>
+
+<script>
+let data = {};
+let allRows = [];
+let signalsText = '';
+let signalsMap = {};
+let signalsModified = false;
+let newSignalCount = 0;
+const STATES = ['unassigned', 'reserved', 'unverified', 'verified', 'live'];
+const CLASSES = ['INFORM', 'ASSIST', 'PROTECT'];
+const SECTIONS = ['relays', 'inputs', 'analog', 'panel'];
+const SECTION_LABELS = {relays: 'Relays (DO)', inputs: 'Inputs (DI)', analog: 'Analog (AI)', panel: 'Panel (AL)'};
+const CH_PREFIX = {relays: 'R', inputs: 'DI', analog: 'AI', panel: 'AL-'};
+
+// Full device library: every physical slot in the environment.
+// Module -> array of {ch, section} for each channel that exists on the hardware.
+const DEVICE_SLOTS = {
+  E1: {
+    relays: Array.from({length: 16}, (_, i) => `E1-R${i + 1}`),
+    inputs: [],
+    analog: []
+  },
+  S2: {
+    relays: [],
+    inputs: Array.from({length: 8}, (_, i) => `S2-DI${i + 1}`),
+    analog: [],
+    dos: Array.from({length: 8}, (_, i) => `S2-DO${i + 1}`)
+  },
+  S3: {
+    relays: Array.from({length: 8}, (_, i) => `S3-R${i + 1}`),
+    inputs: Array.from({length: 8}, (_, i) => `S3-DI${i + 1}`),
+    analog: []
+  },
+  S4: {
+    relays: [],
+    inputs: Array.from({length: 8}, (_, i) => `S4-DI${i + 1}`),
+    analog: [],
+    dos: Array.from({length: 8}, (_, i) => `S4-DO${i + 1}`)
+  },
+  S5: {
+    relays: [],
+    inputs: [],
+    analog: Array.from({length: 8}, (_, i) => `S5-AI${i + 1}`)
+  }
+};
+
+function esc(s) { const d = document.createElement('div'); d.textContent = String(s || ''); return d.innerHTML; }
+function setStatus(msg, type) {
+  const el = document.getElementById('statusMsg');
+  el.className = 'status-' + type;
+  el.textContent = msg;
+}
+
+async function loadAll() {
+  const base = document.getElementById('dataPath').value.replace(/\/$/, '');
+  const sigBase = document.getElementById('signalsPath').value.replace(/\/$/, '');
+  setStatus('Loading…', 'msg');
+  try {
+    const resp = await fetch(base + '/io_master.yml');
+    if (!resp.ok) throw new Error(`io_master: ${resp.status}`);
+    data = jsyaml.load(await resp.text()) || {};
+
+    signalsText = ''; signalsMap = {}; signalsModified = false; newSignalCount = 0;
+    try {
+      const sigResp = await fetch(sigBase + '/signals.yml');
+      if (sigResp.ok) {
+        signalsText = await sigResp.text();
+        const parsed = jsyaml.load(signalsText) || {};
+        signalsMap = parsed.signals || {};
+      }
+    } catch (e) { /* signals load is best-effort */ }
+
+    buildAllRows();
+    renderModules();
+    renderStats();
+    populateFilters();
+    renderRows();
+    updateDeployBtn();
+    const assigned = allRows.filter(r => (r.state || 'unverified') !== 'unassigned').length;
+    const total = allRows.length;
+    const ioSigCount = Object.keys(signalsMap).filter(k => k.startsWith('io.')).length;
+    const sigNote = signalsText ? ` + ${ioSigCount} io.* signals` : ' (signals.yml not loaded)';
+    setStatus(`Loaded: ${assigned} assigned + ${total - assigned} unassigned = ${total} total slots${sigNote}`, 'ok');
+    document.getElementById('deployBtn').style.display = '';
+  } catch (e) {
+    setStatus('Error: ' + e.message, 'err');
+  }
+}
+
+function buildAllRows() {
+  allRows = [];
+  const existingChs = new Set();
+
+  // First pass: collect all rows from io_master.yml
+  for (const sec of SECTIONS) {
+    const items = data[sec];
+    if (!items) continue;
+    if (Array.isArray(items)) {
+      items.forEach((item, i) => {
+        const ch = item.ch || item.al || `${sec}-${i}`;
+        existingChs.add(ch);
+        allRows.push({...item, _section: sec, _idx: i,
+          _ch: ch,
+          _module: extractModule(ch),
+          _function: item.function || '',
+          _fromYml: true});
+      });
+    }
+  }
+
+  // Second pass: generate unassigned slots for every physical channel not in io_master.yml
+  for (const [mod, slots] of Object.entries(DEVICE_SLOTS)) {
+    // Relay channels
+    for (const ch of slots.relays || []) {
+      if (!existingChs.has(ch)) {
+        const row = {ch, function: '', state: 'unassigned', today: '', to_be: '', wf: [],
+          _section: 'relays', _idx: -1, _ch: ch, _module: mod, _function: '', _fromYml: false, _synthetic: true};
+        allRows.push(row);
+      }
+    }
+    // DO channels (S2/S4 IO modules have separate DOs that go in the relays section)
+    for (const ch of slots.dos || []) {
+      if (!existingChs.has(ch)) {
+        const row = {ch, function: '', state: 'unassigned', today: '', to_be: '', wf: [],
+          _section: 'relays', _idx: -1, _ch: ch, _module: mod, _function: '', _fromYml: false, _synthetic: true};
+        allRows.push(row);
+      }
+    }
+    // DI channels
+    for (const ch of slots.inputs || []) {
+      if (!existingChs.has(ch)) {
+        const row = {ch, function: '', state: 'unassigned', today: '', to_be: '', wf: [],
+          _section: 'inputs', _idx: -1, _ch: ch, _module: mod, _function: '', _fromYml: false, _synthetic: true};
+        allRows.push(row);
+      }
+    }
+    // AI channels
+    for (const ch of slots.analog || []) {
+      if (!existingChs.has(ch)) {
+        const row = {ch, function: '', state: 'unassigned', today: '', to_be: '', wf: [],
+          _section: 'analog', _idx: -1, _ch: ch, _module: mod, _function: '', _fromYml: false, _synthetic: true};
+        allRows.push(row);
+      }
+    }
+  }
+
+  // Sort: by section, then by module, then by channel number
+  allRows.sort((a, b) => {
+    const secOrder = SECTIONS.indexOf(a._section) - SECTIONS.indexOf(b._section);
+    if (secOrder !== 0) return secOrder;
+    if (a._module !== b._module) return a._module.localeCompare(b._module);
+    return extractChNum(a._ch) - extractChNum(b._ch);
+  });
+}
+
+function extractChNum(ch) {
+  const m = ch.match(/(\d+)$/);
+  return m ? parseInt(m[1]) : 0;
+}
+
+function extractModule(ch) {
+  if (!ch) return '';
+  const m = ch.match(/^([A-Z]+\d*)/);
+  return m ? m[1] : ch.split('-')[0];
+}
+
+function getChType(ch) {
+  if (!ch) return '';
+  if (ch.includes('-R')) return 'DO';
+  if (ch.includes('-DI')) return 'DI';
+  if (ch.includes('-AI')) return 'AI';
+  if (ch.includes('-DO')) return 'DO';
+  if (ch.startsWith('AL-')) return 'AL';
+  if (ch.includes('VEBUS') || ch.includes('DVCC')) return 'CMD';
+  return '';
+}
+
+function autoCreateSignal(functionName, ch) {
+  if (!functionName || !signalsText) return false;
+  const sigName = 'io.' + functionName;
+  if (signalsMap[sigName]) return false;
+
+  const chType = getChType(ch);
+  if (chType !== 'DI' && chType !== 'AI') return false;
+
+  const isAnalog = chType === 'AI';
+  signalsMap[sigName] = isAnalog ? {max_age: '2s', unit: 'mV'} : {max_age: '2s'};
+
+  const padded = ('  ' + sigName + ':').padEnd(32);
+  const entryLine = isAnalog
+    ? padded + '{max_age: 2s, unit: mV}'
+    : padded + '{max_age: 2s}';
+
+  const lines = signalsText.split('\n');
+  let insertIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^\s{2}io\.\S+:\s/.test(lines[i])) insertIdx = i;
+  }
+  if (insertIdx >= 0) {
+    lines.splice(insertIdx + 1, 0, entryLine);
+    signalsText = lines.join('\n');
+    signalsModified = true;
+    newSignalCount++;
+    updateDeployBtn();
+    return true;
+  }
+  return false;
+}
+
+function updateDeployBtn() {
+  const btn = document.getElementById('deployBtn');
+  if (signalsModified && newSignalCount > 0) {
+    btn.textContent = 'Deploy (+' + newSignalCount + ' signal' + (newSignalCount !== 1 ? 's' : '') + ')';
+  } else {
+    btn.textContent = 'Deploy';
+  }
+}
+
+function renderModules() {
+  const mods = data.modules || {};
+  let html = '<h2>Modules</h2>';
+  for (const [name, m] of Object.entries(mods)) {
+    html += `<div class="module-card">
+      <span class="mod-name">${esc(name)}</span>
+      <span style="font-size:0.8rem; color:var(--text-dim); margin-left:0.5rem;">${esc(m.what || '')}</span>
+      <div class="mod-what">${esc(m.today || '')}</div>
+    </div>`;
+  }
+  document.getElementById('modulesSection').innerHTML = html;
+}
+
+function renderStats() {
+  const stateCounts = {live: 0, verified: 0, unverified: 0, reserved: 0, unassigned: 0};
+  const classCounts = {};
+  const modCounts = {};
+  const secCounts = {};
+  for (const r of allRows) {
+    const st = r.state || 'unverified';
+    if (st in stateCounts) stateCounts[st]++;
+    else stateCounts.unverified++;
+    const cl = r.class || '';
+    if (cl) classCounts[cl] = (classCounts[cl] || 0) + 1;
+    const mod = r._module;
+    if (mod) modCounts[mod] = (modCounts[mod] || 0) + 1;
+    secCounts[r._section] = (secCounts[r._section] || 0) + 1;
+  }
+  let html = '';
+  html += `<div class="stat"><span class="dot" style="background:var(--green)"></span> ${stateCounts.live} live</div>`;
+  html += `<div class="stat"><span class="dot" style="background:var(--yellow)"></span> ${stateCounts.verified} verified</div>`;
+  html += `<div class="stat"><span class="dot" style="background:var(--text-dim)"></span> ${stateCounts.unverified} unverified</div>`;
+  html += `<div class="stat"><span class="dot" style="background:var(--purple)"></span> ${stateCounts.reserved} reserved</div>`;
+  html += `<div class="stat"><span class="dot" style="background:var(--border)"></span> ${stateCounts.unassigned} unassigned</div>`;
+  html += `<div class="stat">|</div>`;
+  for (const [cl, n] of Object.entries(classCounts).sort()) {
+    html += `<div class="stat"><span class="badge badge-${cl}">${cl}</span> ${n}</div>`;
+  }
+  html += `<div class="stat">|</div>`;
+  for (const sec of SECTIONS) {
+    if (secCounts[sec]) html += `<div class="stat">${secCounts[sec]} ${SECTION_LABELS[sec] || sec}</div>`;
+  }
+  document.getElementById('statsBar').innerHTML = html;
+}
+
+function populateFilters() {
+  const modSelect = document.getElementById('filterModule');
+  const mods = new Set(allRows.map(r => r._module).filter(Boolean));
+  modSelect.innerHTML = '<option value="all">All modules</option>' +
+    [...mods].sort().map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
+
+  const newModSelect = document.getElementById('newModule');
+  newModSelect.innerHTML = [...Object.keys(data.modules || {}), ...mods].filter((v,i,a) => a.indexOf(v)===i)
+    .sort().map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
+}
+
+function renderRows() {
+  const modF = document.getElementById('filterModule').value;
+  const stF = document.getElementById('filterState').value;
+  const clF = document.getElementById('filterClass').value;
+  const secF = document.getElementById('filterSection').value;
+  const search = document.getElementById('searchBox').value.toLowerCase();
+
+  const filtered = allRows.filter(r => {
+    if (modF !== 'all' && r._module !== modF) return false;
+    const st = r.state || 'unverified';
+    if (stF === 'assigned') {
+      if (st === 'unassigned') return false;
+    } else if (stF !== 'all' && st !== stF) return false;
+    if (clF !== 'all' && r.class !== clF) return false;
+    if (secF !== 'all' && r._section !== secF) return false;
+    if (search) {
+      const blob = JSON.stringify(r).toLowerCase();
+      if (!blob.includes(search)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('rowCount').textContent = `${filtered.length} / ${allRows.length} slots`;
+
+  let html = '';
+  let lastSection = '';
+  let lastModule = '';
+  for (const r of filtered) {
+    if (r._section !== lastSection) {
+      lastSection = r._section;
+      lastModule = '';
+      html += `<div class="section-header">${esc(SECTION_LABELS[r._section] || r._section)}</div>`;
+    }
+    if (r._module && r._module !== lastModule) {
+      lastModule = r._module;
+      html += `<div class="module-header">${esc(r._module)}</div>`;
+    }
+    html += renderCard(r);
+  }
+  document.getElementById('rowsList').innerHTML = html;
+}
+
+function renderCard(r) {
+  const st = r.state || 'unverified';
+  const idx = allRows.indexOf(r);
+  let html = `<div class="ch-card state-${st}" id="row-${idx}">`;
+  html += `<div class="ch-header">`;
+  html += `<span class="ch-id">${esc(r._ch)}</span>`;
+  if (r._function) {
+    html += `<span class="ch-fn">${esc(r._function)}</span>`;
+  } else {
+    html += `<span class="ch-fn" style="color:var(--text-dim); font-style:italic">— empty —</span>`;
+  }
+  html += `<span class="badge badge-${st}">${st}</span>`;
+  if (r.class) html += `<span class="badge badge-${r.class}">${r.class}</span>`;
+  if (r.hold) html += `<span class="badge badge-hold">HOLD</span>`;
+  if (r.no_test) html += `<span class="badge badge-no_test">NO TEST</span>`;
+  if (r.fail_safe) html += `<span style="font-size:0.7rem; color:var(--text-dim); margin-left:0.3rem">fail-safe: ${esc(r.fail_safe)}</span>`;
+  if (r.wf && r.wf.length) {
+    html += r.wf.map(w => `<span class="badge badge-wf">${esc(w)}</span>`).join(' ');
+  }
+  html += `<button class="btn btn-sm" onclick="toggleEdit(${idx})" style="margin-left:auto">Edit</button>`;
+  html += `</div>`;
+
+  // Texts
+  html += `<div class="ch-texts">`;
+  if (r.today) html += `<div><span class="label">Today:</span> ${esc(truncate(r.today, 250))}</div>`;
+  if (r.to_be) html += `<div><span class="label">To-be:</span> ${esc(truncate(r.to_be, 250))}</div>`;
+  if (r._section === 'panel') {
+    if (r.driven_by) html += `<div><span class="label">Driven by:</span> ${esc(r.driven_by)}</div>`;
+    if (r.pi_reads) html += `<div><span class="label">Pi reads:</span> ${esc(r.pi_reads)}</div>`;
+  }
+  if (r.open && r.open.length) html += `<div><span class="label">Open:</span> ${r.open.map(q => esc(q)).join(', ')}</div>`;
+  if (r.hold && typeof r.hold === 'string') html += `<div><span class="label">Hold:</span> ${esc(r.hold)}</div>`;
+  html += `</div>`;
+
+  // Edit overlay
+  html += renderEditOverlay(r, idx);
+
+  html += `</div>`;
+  return html;
+}
+
+function truncate(s, n) { return s && s.length > n ? s.substring(0, n) + '…' : s; }
+
+function renderEditOverlay(r, idx) {
+  const st = r.state || 'unverified';
+  let html = `<div class="edit-overlay" id="edit-${idx}">`;
+
+  if (r._section !== 'panel') {
+    html += `<div class="edit-row"><label>State:</label>
+      <select id="eState-${idx}">
+        ${STATES.map(s => `<option value="${s}" ${s===st?'selected':''}>${s}</option>`).join('')}
+      </select></div>`;
+    html += `<div class="edit-row"><label>Class:</label>
+      <select id="eClass-${idx}">
+        <option value="">none</option>
+        ${CLASSES.map(c => `<option value="${c}" ${c===r.class?'selected':''}>${c}</option>`).join('')}
+      </select></div>`;
+  }
+
+  html += `<div class="edit-row"><label>Function:</label>
+    <input type="text" id="eFn-${idx}" value="${esc(r._function)}" style="width:300px"></div>`;
+  html += `<div class="edit-row"><label>Today:</label>
+    <textarea id="eToday-${idx}">${esc(r.today || '')}</textarea></div>`;
+  html += `<div class="edit-row"><label>To-be:</label>
+    <textarea id="eToBe-${idx}">${esc(r.to_be || '')}</textarea></div>`;
+  html += `<div class="edit-row"><label>WF refs:</label>
+    <input type="text" id="eWf-${idx}" value="${(r.wf||[]).join(', ')}" style="width:300px" placeholder="WF-101, WF-102"></div>`;
+  html += `<div class="edit-row"><label>Hold:</label>
+    <input type="text" id="eHold-${idx}" value="${esc(r.hold && typeof r.hold === 'string' ? r.hold : '')}" style="width:100%"></div>`;
+
+  if (r._section === 'panel') {
+    html += `<div class="edit-row"><label>Driven by:</label>
+      <textarea id="eDriven-${idx}">${esc(r.driven_by || '')}</textarea></div>`;
+    html += `<div class="edit-row"><label>Pi reads:</label>
+      <input type="text" id="ePiReads-${idx}" value="${esc(r.pi_reads || '')}" style="width:100%"></div>`;
+  }
+
+  html += `<div style="margin-top:0.5rem; display:flex; gap:0.5rem;">
+    <button class="btn btn-primary" onclick="saveEdit(${idx})">Apply</button>
+    <button class="btn" onclick="showYaml(${idx})">Show YAML</button>
+    <button class="btn" onclick="toggleEdit(${idx})">Cancel</button>
+  </div>`;
+  html += `<pre id="eYaml-${idx}" style="display:none; margin-top:0.5rem; padding:0.5rem; background:var(--bg); border:1px solid var(--border); border-radius:4px; font-size:0.8rem; white-space:pre-wrap;"></pre>`;
+  html += `</div>`;
+  return html;
+}
+
+function toggleEdit(idx) {
+  document.getElementById('edit-' + idx).classList.toggle('open');
+}
+
+function showYaml(idx) {
+  const pre = document.getElementById('eYaml-' + idx);
+  pre.style.display = pre.style.display === 'none' ? 'block' : 'none';
+  const r = allRows[idx];
+  const clean = {...r};
+  delete clean._section; delete clean._idx; delete clean._ch; delete clean._module; delete clean._function;
+  delete clean._fromYml; delete clean._synthetic;
+  pre.textContent = jsyaml.dump([clean], {lineWidth: 120, noRefs: true, sortKeys: false});
+}
+
+function saveEdit(idx) {
+  const r = allRows[idx];
+  const oldFunction = r._function;
+
+  if (r._section !== 'panel') {
+    const newState = document.getElementById('eState-' + idx).value;
+    r.state = newState;
+    const newClass = document.getElementById('eClass-' + idx).value;
+    if (newClass) r.class = newClass;
+    else delete r.class;
+  }
+
+  r.function = document.getElementById('eFn-' + idx).value.trim();
+  r._function = r.function;
+  r.today = document.getElementById('eToday-' + idx).value;
+  r.to_be = document.getElementById('eToBe-' + idx).value;
+
+  const wfStr = document.getElementById('eWf-' + idx).value.trim();
+  r.wf = wfStr ? wfStr.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+  const holdStr = document.getElementById('eHold-' + idx).value.trim();
+  if (holdStr) r.hold = holdStr;
+  else delete r.hold;
+
+  if (r._section === 'panel') {
+    r.driven_by = document.getElementById('eDriven-' + idx).value;
+    r.pi_reads = document.getElementById('ePiReads-' + idx).value;
+  }
+
+  // If this was a synthetic (unassigned) slot and now has data, add it to the data object
+  if (r._synthetic) {
+    const sec = r._section;
+    if (!data[sec]) data[sec] = [];
+    const clean = {...r};
+    delete clean._section; delete clean._idx; delete clean._ch; delete clean._module; delete clean._function;
+    delete clean._fromYml; delete clean._synthetic;
+    data[sec].push(clean);
+    r._idx = data[sec].length - 1;
+    r._fromYml = true;
+    r._synthetic = false;
+  } else {
+    // Propagate back to the data object
+    const sec = r._section;
+    const secIdx = r._idx;
+    if (secIdx >= 0) {
+      const clean = {...r};
+      delete clean._section; delete clean._idx; delete clean._ch; delete clean._module; delete clean._function;
+      delete clean._fromYml; delete clean._synthetic;
+      data[sec][secIdx] = clean;
+    }
+  }
+
+  // Auto-create signal for newly assigned DI/AI functions
+  let statusMsg = `Updated ${r._ch} ${r._function}`;
+  if (r.function && r.function !== oldFunction) {
+    if (autoCreateSignal(r.function, r._ch)) {
+      statusMsg += ` + created signal io.${r.function}`;
+    }
+  }
+  setStatus(statusMsg, 'ok');
+  renderStats();
+  renderRows();
+}
+
+function toggleBuilder() {
+  document.getElementById('builder').classList.toggle('open');
+}
+
+function addRow() {
+  const sec = document.getElementById('newSection').value;
+  const mod = document.getElementById('newModule').value;
+  const num = document.getElementById('newChNum').value;
+  const fn = document.getElementById('newFunction').value.trim();
+  if (!fn) { setStatus('Function name required', 'err'); return; }
+
+  const typePrefix = {relays: 'R', inputs: 'DI', analog: 'AI'}[sec] || 'R';
+  const ch = `${mod}-${typePrefix}${num}`;
+
+  if (allRows.some(r => r._ch === ch && r._function)) {
+    setStatus(`Channel ${ch} already assigned`, 'err');
+    return;
+  }
+
+  const row = {
+    ch, function: fn, state: 'unverified',
+    today: document.getElementById('newToday').value,
+    to_be: document.getElementById('newToBe').value,
+    class: document.getElementById('newClass').value,
+    wf: []
+  };
+
+  const pre = document.getElementById('previewYaml');
+  pre.style.display = 'block';
+  pre.textContent = jsyaml.dump([row], {lineWidth: 120, noRefs: true, sortKeys: false});
+  setStatus(`Preview of ${ch} — add to ${sec} on save`, 'ok');
+}
+
+// ============================================================================
+// GENERATE FULL YAML (for deploy)
+// ============================================================================
+function generateYaml() {
+  const header = `# Purpose: I/O master table — the single source of truth for every relay, digital input, analog channel
+#   and panel alarm wired to the CAMS 1.5 string. Drives the engine's arbiter, io.* signals, and relay-test.
+# Version: EDITED by I/O Master Editor
+# Scope: PRODUCTION data.
+# Architecture: spec/04-Interfaces. Parsed by engine/config.py.
+# Invocation: loaded by the engine at start and on restart.
+
+`;
+  // Build a clean data object that excludes purely unassigned synthetic rows
+  const cleanData = JSON.parse(JSON.stringify(data));
+  return header + jsyaml.dump(cleanData, {lineWidth: 120, noRefs: true, sortKeys: false, quotingType: '"'});
+}
+
+// ============================================================================
+// DEPLOY
+// ============================================================================
+async function startDeploy() {
+  const overlay = document.getElementById('deployOverlay');
+  const stepsEl = document.getElementById('deploySteps');
+  const title = document.querySelector('#deployPanel h3');
+  overlay.classList.add('active');
+
+  title.textContent = signalsModified
+    ? 'Deploying io_master.yml + signals.yml'
+    : 'Deploying io_master.yml';
+
+  const yaml = generateYaml();
+  const assigned = allRows.filter(r => r._fromYml || !r._synthetic).length;
+  const deployBase = location.origin + '/deploy';
+  const steps = [];
+
+  function render() {
+    stepsEl.innerHTML = steps.map(s => `<div class="${s.c}">${s.t}</div>`).join('');
+  }
+
+  steps.push({c: 'step-ok', t: `Generated io_master YAML (${assigned} assigned rows)`});
+  steps.push({c: 'step-wait', t: 'Sending io_master to deploy API…'});
+  render();
+
+  try {
+    const ioResp = await fetch(deployBase + '/api/deploy/io_master', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({content: yaml, message: `I/O master editor deploy (${assigned} rows)`})
+    });
+    const ioData = await ioResp.json();
+
+    steps.pop();
+    for (const s of (ioData.steps || [])) {
+      steps.push({c: s.ok ? 'step-ok' : 'step-fail', t: `${s.step}: ${s.message}`});
+    }
+    if (!ioData.ok) {
+      steps.push({c: 'step-fail', t: 'io_master deploy failed'});
+      if (ioData.hint) steps.push({c: '', t: ioData.hint});
+      render(); setStatus('Deploy failed', 'err'); return;
+    }
+    steps.push({c: 'step-ok', t: 'io_master deployed'});
+    if (ioData.restart_needed) {
+      steps.push({c: '', t: 'Restart the rules-engine container to apply io_master changes'});
+    }
+
+    if (signalsModified && signalsText) {
+      steps.push({c: 'step-wait', t: `Deploying signals.yml (${newSignalCount} new signal${newSignalCount !== 1 ? 's' : ''})…`});
+      render();
+
+      const sigResp = await fetch(deployBase + '/api/deploy/signals', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({content: signalsText, message: `io-editor: ${newSignalCount} new io.* signal(s)`})
+      });
+      const sigData = await sigResp.json();
+
+      steps.pop();
+      for (const s of (sigData.steps || [])) {
+        steps.push({c: s.ok ? 'step-ok' : 'step-fail', t: `signals ${s.step}: ${s.message}`});
+      }
+      if (sigData.ok) {
+        steps.push({c: 'step-ok', t: `signals.yml deployed (${newSignalCount} new)`});
+        if (sigData.restart_needed) {
+          steps.push({c: '', t: 'Restart the rules-engine container to apply signals changes'});
+        }
+        signalsModified = false; newSignalCount = 0; updateDeployBtn();
+      } else {
+        steps.push({c: 'step-fail', t: 'signals deploy failed'});
+        if (sigData.hint) steps.push({c: '', t: sigData.hint});
+      }
+    }
+
+    render();
+    setStatus('Deploy complete' + (ioData.restart_needed ? ' — restart needed' : ''), 'ok');
+
+  } catch (err) {
+    steps.push({c: 'step-fail', t: `Network error: ${err.message}`});
+    steps.push({c: '', t: 'Is the deploy API running?'});
+    render();
+    setStatus('Deploy failed — network error', 'err');
+  }
+}
+
+function closeDeploy() {
+  document.getElementById('deployOverlay').classList.remove('active');
+}
+
+// Filters
+document.getElementById('filterModule').addEventListener('change', renderRows);
+document.getElementById('filterState').addEventListener('change', renderRows);
+document.getElementById('filterClass').addEventListener('change', renderRows);
+document.getElementById('filterSection').addEventListener('change', renderRows);
+document.getElementById('searchBox').addEventListener('input', renderRows);
+
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'f') { e.preventDefault(); document.getElementById('searchBox').focus(); }
+});
+
+window.addEventListener('DOMContentLoaded', () => {
+  setStatus('Click Load to open io_master.yml', 'msg');
+});
+</script>
+</body>
+</html>

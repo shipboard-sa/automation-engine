@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<!--
+Purpose: Signals Editor — viewer and editor for the Ship's Automation signal catalog (signals.yml).
+    Reads and writes the same YAML data file the engine uses. Pick lists derived from live
+    vocabularies; enforces signal naming conventions and required fields by prefix type.
+Version: v3 (2026-11-05) - v3: signal type badges (inferred), live value display via engine /signals API.
+    v2: YAML syntax highlighting in Show YAML preview.
+Scope: STANDALONE UTILITY — laptop/Ship's PC tool.
+Architecture: tools/signals-editor/. A single HTML+JS page; loads YAML via js-yaml from CDN.
+Invocation: open index.html in a browser; point it at the data/ directory.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Signals Editor — SV Unladen Swallow 2</title>
+<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+<style>
+:root {
+  --bg: #1a1a2e;
+  --surface: #16213e;
+  --surface2: #0f3460;
+  --text: #e8e8e8;
+  --text-dim: #8892b0;
+  --accent: #e94560;
+  --accent2: #0ea5e9;
+  --green: #22c55e;
+  --yellow: #eab308;
+  --orange: #f97316;
+  --red: #ef4444;
+  --border: #2a2a4a;
+  --mono: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  padding: 1rem;
+  padding-bottom: 3rem;
+}
+h1 { font-size: 1.3rem; margin-bottom: 0.5rem; }
+h1 span { color: var(--accent); }
+
+.toolbar {
+  display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;
+  padding: 0.75rem; background: var(--surface); border-radius: 8px;
+  margin-bottom: 1rem; border: 1px solid var(--border);
+}
+.toolbar label { font-size: 0.8rem; color: var(--text-dim); }
+.toolbar select, .toolbar input[type="text"] {
+  background: var(--bg); color: var(--text); border: 1px solid var(--border);
+  border-radius: 4px; padding: 4px 8px; font-size: 0.85rem;
+}
+.toolbar input[type="text"] { width: 200px; }
+.toolbar .count { margin-left: auto; font-size: 0.85rem; color: var(--text-dim); }
+
+.stats {
+  display: flex; gap: 0.75rem; flex-wrap: wrap; padding: 0.5rem 0.75rem;
+  margin-bottom: 1rem; font-size: 0.8rem; color: var(--text-dim);
+}
+.stats .stat { display: flex; gap: 0.3rem; align-items: center; }
+.stats .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+.sig-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 0.6rem 1rem; margin-bottom: 0.4rem; transition: border-color 0.2s;
+}
+.sig-card:hover { border-color: var(--accent2); }
+.sig-card.pending { border-left: 3px solid var(--yellow); opacity: 0.85; }
+.sig-card.dormant { border-left: 3px solid var(--text-dim); opacity: 0.6; }
+.sig-card.live { border-left: 3px solid var(--green); }
+
+.sig-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem; }
+.sig-name { font-family: var(--mono); font-weight: bold; font-size: 0.9rem; color: var(--accent2); }
+.badge {
+  font-size: 0.6rem; padding: 1px 6px; border-radius: 3px; font-weight: 600; text-transform: uppercase;
+}
+.badge-prefix { background: var(--surface2); color: var(--text); }
+.badge-pending { background: var(--yellow); color: #000; }
+.badge-dormant { background: var(--text-dim); color: #000; }
+.badge-unit { background: var(--border); color: var(--text-dim); }
+.badge-invert { background: var(--orange); color: #000; }
+.badge-oq { background: var(--accent); color: #fff; }
+.badge-type { font-size: 0.6rem; padding: 1px 6px; border-radius: 3px; font-weight: 600; }
+.badge-type.t-bool { background: #4fc3f7; color: #000; }
+.badge-type.t-real { background: #ffd54f; color: #000; }
+.badge-type.t-string { background: #ce93d8; color: #000; }
+.badge-type.t-position { background: #81c784; color: #000; }
+.badge-type.t-unknown { background: var(--border); color: var(--text-dim); }
+
+.live-val {
+  font-size: 0.78rem; margin-top: 0.3rem; padding: 4px 8px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+  display: none; font-family: var(--mono);
+}
+.live-val.visible { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+.live-val .lv-value { color: var(--green); font-weight: 600; }
+.live-val .lv-unknown { color: var(--red); }
+.live-val .lv-age { color: var(--text-dim); }
+.live-val .lv-sim { color: var(--orange); font-weight: 600; }
+
+/* --- YAML syntax highlighting (Show YAML preview) --- */
+.y-key { color: var(--accent2); }
+.y-num { color: var(--green); }
+.y-bool { color: var(--orange); }
+.y-str { color: var(--yellow); }
+.y-val { color: var(--text); }
+.y-sev { color: var(--red); font-weight: 600; }
+.y-mode { color: var(--green); font-weight: 600; }
+.y-comment { color: var(--text-dim); font-style: italic; }
+
+.sig-props { font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.2rem; }
+.sig-props .prop-label { color: var(--accent); }
+.sig-props .prop-val { color: var(--text); font-family: var(--mono); font-size: 0.8rem; }
+.sig-note { font-size: 0.78rem; color: var(--text-dim); font-style: italic; line-height: 1.4; }
+
+.edit-overlay {
+  display: none; background: var(--bg); border: 1px solid var(--accent2);
+  border-radius: 8px; padding: 0.75rem; margin-top: 0.5rem;
+}
+.edit-overlay.open { display: block; }
+.edit-row {
+  display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.4rem; flex-wrap: wrap;
+}
+.edit-row label { font-size: 0.8rem; color: var(--text-dim); min-width: 80px; }
+.edit-row input, .edit-row select, .edit-row textarea {
+  background: var(--surface); color: var(--text); border: 1px solid var(--border);
+  border-radius: 4px; padding: 4px 8px; font-size: 0.85rem; font-family: var(--mono);
+}
+.edit-row textarea { width: 100%; min-height: 50px; resize: vertical; }
+
+.btn {
+  padding: 4px 12px; border: 1px solid var(--border); border-radius: 4px;
+  background: var(--surface); color: var(--text); font-size: 0.8rem; cursor: pointer;
+}
+.btn:hover { border-color: var(--accent2); background: var(--surface2); }
+.btn-primary { background: var(--accent2); color: #fff; border-color: var(--accent2); }
+.btn-primary:hover { background: #0284c7; }
+.btn-sm { padding: 2px 8px; font-size: 0.75rem; }
+.btn-deploy { background: var(--green); color: #000; border-color: var(--green); font-weight: 600; }
+.btn-deploy:hover { background: #16a34a; }
+.btn-deploy:disabled { opacity: 0.5; cursor: not-allowed; }
+#deployOverlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  z-index: 1000; justify-content: center; align-items: center;
+}
+#deployOverlay.active { display: flex; }
+#deployPanel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 1.5rem; max-width: 500px; width: 90%;
+}
+#deployPanel h3 { margin-bottom: 1rem; }
+#deploySteps { font-size: 0.85rem; font-family: var(--mono); line-height: 2; }
+#deploySteps .step-ok::before { content: '\2713 '; color: var(--green); }
+#deploySteps .step-fail::before { content: '\2717 '; color: var(--red); }
+#deploySteps .step-wait::before { content: '\25CB '; color: var(--text-dim); }
+
+#builder {
+  display: none; background: var(--surface); border: 1px solid var(--accent2);
+  border-radius: 8px; padding: 1rem; margin-bottom: 1rem;
+}
+#builder.open { display: block; }
+#builder h2 { font-size: 1rem; margin-bottom: 0.75rem; color: var(--accent2); }
+.builder-row {
+  display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap;
+}
+.builder-row label { font-size: 0.8rem; color: var(--text-dim); min-width: 100px; }
+.builder-row select, .builder-row input {
+  background: var(--bg); color: var(--text); border: 1px solid var(--border);
+  border-radius: 4px; padding: 4px 8px; font-size: 0.85rem;
+}
+
+.status-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; padding: 0.4rem 1rem;
+  background: var(--surface); border-top: 1px solid var(--border); font-size: 0.8rem;
+  display: flex; gap: 1rem; align-items: center; z-index: 100;
+}
+.status-msg { color: var(--text-dim); }
+.status-ok { color: var(--green); }
+.status-err { color: var(--red); }
+.file-picker {
+  display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;
+  padding: 0.75rem; background: var(--surface); border: 2px dashed var(--accent2);
+  border-radius: 8px; margin-bottom: 1rem;
+}
+.file-picker label { font-size: 0.8rem; color: var(--text-dim); }
+.file-picker .fp-note { font-size: 0.8rem; color: var(--yellow); width: 100%; margin-bottom: 0.3rem; }
+.file-picker input[type="file"] { font-size: 0.8rem; color: var(--text-dim); }
+.file-picker input[type="file"]::file-selector-button {
+  background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 4px; padding: 3px 8px; cursor: pointer; font-size: 0.8rem;
+}
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<h1>Signals Editor — <span>SV Unladen Swallow 2</span></h1>
+
+<div class="toolbar">
+  <label>Data path:
+    <input type="text" id="dataPath" value="../../stacks/rules-engine/data" placeholder="path to data/">
+  </label>
+  <button class="btn btn-primary" onclick="loadAll()">Load</button>
+  <label>Prefix:
+    <select id="filterPrefix">
+      <option value="all">All prefixes</option>
+    </select>
+  </label>
+  <label>State:
+    <select id="filterState">
+      <option value="all">All states</option>
+      <option value="live">Live only</option>
+      <option value="pending">Pending only</option>
+      <option value="dormant">Dormant only</option>
+    </select>
+  </label>
+  <label>Search:
+    <input type="text" id="searchBox" placeholder="name, note, unit…">
+  </label>
+  <button class="btn" onclick="toggleBuilder()">+ New Signal</button>
+  <button class="btn" onclick="saveAll()">Save YAML</button>
+  <button class="btn btn-deploy" id="deployBtn" onclick="startDeploy()" style="display:none">Deploy</button>
+  <span style="border-left:1px solid var(--border); height:1.2rem; margin:0 0.25rem"></span>
+  <label>Engine:
+    <input type="text" id="engineUrl" placeholder="http://host:8000" style="width:170px">
+  </label>
+  <button class="btn" onclick="connectEngine()">Connect</button>
+  <span class="count" id="sigCount"></span>
+</div>
+<div id="deployOverlay">
+  <div id="deployPanel">
+    <h3>Deploying signals.yml</h3>
+    <div id="deploySteps"></div>
+    <div style="margin-top:1rem;text-align:right">
+      <button class="btn" onclick="closeDeploy()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="file-picker hidden" id="filePicker">
+  <div class="fp-note">Opened from filesystem — select signals.yml to load:</div>
+  <label>signals.yml: <input type="file" id="fpSignals" accept=".yml,.yaml"></label>
+  <button class="btn btn-primary" onclick="loadFromFile()">Load File</button>
+</div>
+
+<div class="stats" id="statsBar"></div>
+
+<div id="builder">
+  <h2>New Signal</h2>
+  <div class="builder-row">
+    <label>Prefix:</label>
+    <select id="newPrefix" onchange="updatePrefixFields()">
+      <option value="sk">sk (SignalK)</option>
+      <option value="io">io (I/O module)</option>
+      <option value="cerbo">cerbo (Victron MQTT)</option>
+      <option value="ssm">ssm (SmartShunt Modbus)</option>
+      <option value="net">net (HTTP poll)</option>
+      <option value="host">host (local file/method)</option>
+      <option value="cam">cam (camera hub)</option>
+      <option value="crew">crew (LAN presence)</option>
+      <option value="starlink">starlink (dish gRPC)</option>
+      <option value="ais">ais (AIS ALR)</option>
+    </select>
+  </div>
+  <div class="builder-row">
+    <label>Name:</label>
+    <input type="text" id="newName" placeholder="signal_name (without prefix)">
+  </div>
+  <div id="prefixFields"></div>
+  <div class="builder-row">
+    <label>Period:</label>
+    <input type="text" id="newPeriod" placeholder="e.g. 1s, 30s, 5m" value="30s">
+  </div>
+  <div class="builder-row">
+    <label>Max age:</label>
+    <input type="text" id="newMaxAge" placeholder="e.g. 60s, 5m" value="120s">
+  </div>
+  <div class="builder-row">
+    <label>Unit:</label>
+    <select id="newUnit">
+      <option value="">(none)</option>
+      <option value="K">K (kelvin)</option>
+      <option value="C">C (celsius)</option>
+      <option value="rpm">rpm</option>
+      <option value="kPa">kPa</option>
+      <option value="%">%</option>
+      <option value="V">V (volts)</option>
+      <option value="A">A (amps)</option>
+      <option value="W">W (watts)</option>
+      <option value="mV">mV</option>
+      <option value="m/s">m/s</option>
+      <option value="L/s">L/s</option>
+      <option value="inHg">inHg</option>
+      <option value="GB">GB</option>
+      <option value="MB">MB</option>
+      <option value="h">h (hours)</option>
+      <option value="ratio">ratio (0-1)</option>
+    </select>
+  </div>
+  <div class="builder-row">
+    <label>Scale:</label>
+    <input type="number" step="any" id="newScale" placeholder="(optional)">
+  </div>
+  <div class="builder-row">
+    <label>Invert:</label>
+    <select id="newInvert"><option value="">No</option><option value="true">Yes</option></select>
+  </div>
+  <div class="builder-row">
+    <label>Pending:</label>
+    <select id="newPending"><option value="">No (live)</option><option value="true">Yes (pending)</option></select>
+  </div>
+  <div class="builder-row">
+    <label>Open OQ:</label>
+    <input type="text" id="newOpen" placeholder="OQ-nnn (if pending)">
+  </div>
+  <div class="builder-row">
+    <label>Note:</label>
+    <textarea id="newNote" placeholder="what it is, what reads it, how it works"></textarea>
+  </div>
+  <div style="margin-top:0.75rem; display:flex; gap:0.5rem;">
+    <button class="btn btn-primary" onclick="buildSignal()">Preview YAML</button>
+    <button class="btn btn-primary hidden" id="addBtn">Add to Catalog</button>
+    <button class="btn" onclick="toggleBuilder()">Cancel</button>
+  </div>
+  <pre id="previewYaml" style="display:none; margin-top:0.5rem; padding:0.5rem; background:var(--bg); border:1px solid var(--border); border-radius:4px; font-size:0.8rem; white-space:pre-wrap;"></pre>
+</div>
+
+<div id="signalsList"></div>
+
+<div class="status-bar">
+  <span class="status-msg" id="statusMsg">Ready — click Load to open data files</span>
+</div>
+
+<script>
+// ============================================================================
+// STATE
+// ============================================================================
+let signalsMap = {};  // name -> props
+let historyRules = [];
+let dataPath = '';
+
+const PREFIXES = {
+  'sk':       { color: '#0ea5e9', source: 'path',    label: 'SignalK' },
+  'io':       { color: '#22c55e', source: null,       label: 'I/O' },
+  'cerbo':    { color: '#a855f7', source: 'topic',    label: 'Cerbo MQTT' },
+  'ssm':      { color: '#f97316', source: 'field',    label: 'SmartShunt' },
+  'net':      { color: '#eab308', source: 'url',      label: 'HTTP' },
+  'host':     { color: '#ec4899', source: 'file',     label: 'Host' },
+  'cam':      { color: '#14b8a6', source: 'channel',  label: 'Camera' },
+  'crew':     { color: '#f43f5e', source: 'lan',      label: 'LAN' },
+  'starlink': { color: '#6366f1', source: 'dish',     label: 'Starlink' },
+  'ais':      { color: '#84cc16', source: 'alr',      label: 'AIS' },
+};
+
+const KNOWN_UNITS = ['K', 'C', 'rpm', 'kPa', '%', 'V', 'A', 'W', 'mV', 'm/s', 'L/s', 'inHg', 'GB', 'MB', 'h', 'ratio'];
+
+let engineUrl = '';    // e.g. http://192.168.1.100:8000
+let liveSignals = {};  // name -> {value, age, simulated, known, source, ...}
+let liveTimer = null;
+
+function getPrefix(name) {
+  const dot = name.indexOf('.');
+  return dot > 0 ? name.substring(0, dot) : '';
+}
+
+function inferType(name, props) {
+  if (name.startsWith('test.')) {
+    const TEST_TYPES = {
+      'test.bool_1':'bool','test.bool_2':'bool','test.bool_3':'bool',
+      'test.real_1':'real','test.real_2':'real','test.real_3':'real','test.real_4':'real',
+      'test.string_1':'string','test.string_2':'string','test.position':'position',
+    };
+    return TEST_TYPES[name] || 'unknown';
+  }
+  if (name === 'sk.position') return 'position';
+  if (props.unit || (props.scale != null && props.scale !== 1)) return 'real';
+  if (props.invert) return 'bool';
+  const prefix = getPrefix(name);
+  if (prefix === 'io') {
+    if (/\.(AI|analog)/i.test(name)) return 'real';
+    return 'bool';
+  }
+  const tail = name.split('.').pop();
+  if (/(^|_)(active|running|alarm|healthy|trip|open|closed|present|enabled|on|detected|ready)$/.test(tail)) return 'bool';
+  if (props.method === 'ping') return 'bool';
+  if (/position|latitude|longitude/i.test(name)) return 'position';
+  if (props.path && /position/i.test(props.path)) return 'position';
+  return 'unknown';
+}
+
+// ============================================================================
+// FILE LOADING — fetch (HTTP) or File API (file://)
+// ============================================================================
+const isFileProtocol = location.protocol === 'file:';
+let rawHeader = '';
+
+async function loadAll() {
+  if (isFileProtocol) {
+    setStatus('Use the file picker above to load signals.yml', 'msg');
+    return;
+  }
+  dataPath = document.getElementById('dataPath').value.replace(/\/$/, '');
+  setStatus('Loading…', 'msg');
+  try {
+    const resp = await fetch(dataPath + '/signals.yml');
+    if (!resp.ok) throw new Error(`Failed: ${resp.status}`);
+    parseAndLoad(await resp.text());
+  } catch (e) {
+    setStatus('Error: ' + e.message, 'err');
+    console.error(e);
+  }
+}
+
+function readFileInput(inputId) {
+  return new Promise((resolve, reject) => {
+    const input = document.getElementById(inputId);
+    if (!input.files || !input.files[0]) { reject(new Error('No file selected')); return; }
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(input.files[0]);
+  });
+}
+
+async function loadFromFile() {
+  setStatus('Loading…', 'msg');
+  try {
+    parseAndLoad(await readFileInput('fpSignals'));
+  } catch (e) {
+    setStatus('Error: ' + e.message, 'err');
+    console.error(e);
+  }
+}
+
+function parseAndLoad(text) {
+  const headerEnd = text.indexOf('\nsignals:');
+  if (headerEnd >= 0) rawHeader = text.substring(0, headerEnd + 1);
+  else rawHeader = '';
+
+  const parsed = jsyaml.load(text);
+  signalsMap = parsed.signals || {};
+  historyRules = parsed.history || [];
+
+  setStatus(`Loaded ${Object.keys(signalsMap).length} signals, ${historyRules.length} history rules`, 'ok');
+  populatePrefixFilter();
+  renderStats();
+  renderSignals();
+  if (!isFileProtocol) document.getElementById('deployBtn').style.display = '';
+}
+
+function populatePrefixFilter() {
+  const sel = document.getElementById('filterPrefix');
+  const prefixCounts = {};
+  for (const name of Object.keys(signalsMap)) {
+    const p = getPrefix(name);
+    prefixCounts[p] = (prefixCounts[p] || 0) + 1;
+  }
+  sel.innerHTML = '<option value="all">All prefixes</option>';
+  for (const p of Object.keys(PREFIXES)) {
+    if (prefixCounts[p]) {
+      sel.innerHTML += `<option value="${p}">${p} (${prefixCounts[p]})</option>`;
+    }
+  }
+}
+
+// ============================================================================
+// STATS
+// ============================================================================
+function renderStats() {
+  const entries = Object.entries(signalsMap);
+  const total = entries.length;
+  const pending = entries.filter(([,v]) => v.pending).length;
+  const dormant = entries.filter(([,v]) => v.dormant).length;
+  const withUnit = entries.filter(([,v]) => v.unit).length;
+  const inverted = entries.filter(([,v]) => v.invert).length;
+
+  const prefixCounts = {};
+  for (const [name] of entries) {
+    const p = getPrefix(name);
+    prefixCounts[p] = (prefixCounts[p] || 0) + 1;
+  }
+
+  let html = '';
+  for (const [p, info] of Object.entries(PREFIXES)) {
+    if (prefixCounts[p]) {
+      html += `<div class="stat"><span class="dot" style="background:${info.color}"></span> ${prefixCounts[p]} ${p}</div>`;
+    }
+  }
+  html += `<div class="stat">|</div>`;
+  html += `<div class="stat">${total - pending - dormant} live</div>`;
+  html += `<div class="stat"><span class="dot" style="background:var(--yellow)"></span> ${pending} pending</div>`;
+  if (dormant) html += `<div class="stat"><span class="dot" style="background:var(--text-dim)"></span> ${dormant} dormant</div>`;
+  html += `<div class="stat">${withUnit} with unit</div>`;
+  if (inverted) html += `<div class="stat">${inverted} inverted</div>`;
+
+  document.getElementById('statsBar').innerHTML = html;
+}
+
+// ============================================================================
+// SIGNAL RENDERING
+// ============================================================================
+function renderSignals() {
+  const prefixF = document.getElementById('filterPrefix').value;
+  const stateF = document.getElementById('filterState').value;
+  const search = document.getElementById('searchBox').value.toLowerCase();
+
+  const entries = Object.entries(signalsMap);
+  const filtered = entries.filter(([name, props]) => {
+    if (prefixF !== 'all' && getPrefix(name) !== prefixF) return false;
+    if (stateF === 'live' && (props.pending || props.dormant)) return false;
+    if (stateF === 'pending' && !props.pending) return false;
+    if (stateF === 'dormant' && !props.dormant) return false;
+    if (search) {
+      const blob = (name + ' ' + JSON.stringify(props)).toLowerCase();
+      if (!blob.includes(search)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('sigCount').textContent = `${filtered.length} / ${entries.length} signals`;
+  document.getElementById('signalsList').innerHTML = filtered.map(([name, props], i) =>
+    renderSignalCard(name, props, i)
+  ).join('');
+}
+
+function renderSignalCard(name, props, idx) {
+  const prefix = getPrefix(name);
+  const info = PREFIXES[prefix] || { color: '#666', label: prefix };
+  const isPending = !!props.pending;
+  const isDormant = !!props.dormant;
+  const stateClass = isPending ? 'pending' : isDormant ? 'dormant' : 'live';
+
+  let html = `<div class="sig-card ${stateClass}" id="sig-${idx}">`;
+  html += `<div class="sig-header">`;
+  html += `<span class="sig-name">${esc(name)}</span>`;
+  html += `<span class="badge badge-prefix" style="background:${info.color}; color:#000">${info.label}</span>`;
+  if (isPending) html += `<span class="badge badge-pending">PENDING</span>`;
+  if (isDormant) html += `<span class="badge badge-dormant">DORMANT</span>`;
+  if (props.unit) html += `<span class="badge badge-unit">${esc(props.unit)}</span>`;
+  if (props.invert) html += `<span class="badge badge-invert">INVERT</span>`;
+  const sigType = inferType(name, props);
+  if (sigType !== 'unknown') html += `<span class="badge badge-type t-${sigType}">${sigType}</span>`;
+  else html += `<span class="badge badge-type t-unknown">?</span>`;
+  if (props.open) {
+    const opens = Array.isArray(props.open) ? props.open : [props.open];
+    for (const o of opens) html += `<span class="badge badge-oq">${esc(String(o))}</span>`;
+  }
+  html += `<button class="btn btn-sm" onclick="toggleEdit('${esc(name)}', ${idx})" style="margin-left:auto">Edit</button>`;
+  html += `</div>`;
+
+  // Properties line
+  let propsHtml = [];
+  if (props.period) propsHtml.push(`<span class="prop-label">period:</span> <span class="prop-val">${esc(String(props.period))}</span>`);
+  if (props.max_age) propsHtml.push(`<span class="prop-label">max_age:</span> <span class="prop-val">${esc(String(props.max_age))}</span>`);
+  if (props.scale != null && props.scale !== 1) propsHtml.push(`<span class="prop-label">scale:</span> <span class="prop-val">${props.scale}</span>`);
+
+  // Source-specific key
+  const srcKey = info.source;
+  if (srcKey && props[srcKey]) propsHtml.push(`<span class="prop-label">${srcKey}:</span> <span class="prop-val">${esc(String(props[srcKey]))}</span>`);
+  if (props.path && srcKey !== 'path') propsHtml.push(`<span class="prop-label">path:</span> <span class="prop-val">${esc(props.path)}</span>`);
+  if (props.device) propsHtml.push(`<span class="prop-label">device:</span> <span class="prop-val">${esc(props.device)}</span>`);
+  if (props.part) propsHtml.push(`<span class="prop-label">part:</span> <span class="prop-val">${esc(props.part)}</span>`);
+  if (props.method) propsHtml.push(`<span class="prop-label">method:</span> <span class="prop-val">${esc(props.method)}</span>`);
+  if (props.stat) propsHtml.push(`<span class="prop-label">stat:</span> <span class="prop-val">${esc(props.stat)}</span>`);
+  if (props.window) propsHtml.push(`<span class="prop-label">window:</span> <span class="prop-val">${esc(String(props.window))}</span>`);
+  if (props.glinet) propsHtml.push(`<span class="prop-label">glinet:</span> <span class="prop-val">${esc(props.glinet)}</span>`);
+  if (props.tailscale) propsHtml.push(`<span class="prop-label">tailscale:</span> <span class="prop-val">${esc(props.tailscale)}</span>`);
+
+  if (propsHtml.length) html += `<div class="sig-props">${propsHtml.join(' · ')}</div>`;
+
+  // Note
+  if (props.note) html += `<div class="sig-note">${esc(props.note)}</div>`;
+
+  // Live value (shown when engine is connected)
+  html += renderLiveValue(name);
+
+  // Edit overlay
+  html += renderEditOverlay(name, props, idx);
+
+  html += `</div>`;
+  return html;
+}
+
+function renderLiveValue(name) {
+  const sig = liveSignals[name];
+  if (!engineUrl || !sig) return '<div class="live-val"></div>';
+  let cls = 'live-val visible';
+  let inner = '';
+  if (sig.known) {
+    let display = sig.value;
+    if (typeof display === 'object' && display !== null) {
+      if (display.latitude != null) display = `${display.latitude.toFixed(4)}, ${display.longitude.toFixed(4)}`;
+      else display = JSON.stringify(display);
+    }
+    inner += `<span class="lv-value">${esc(String(display))}</span>`;
+  } else {
+    inner += `<span class="lv-unknown">UNKNOWN</span>`;
+  }
+  if (sig.age_s != null) inner += `<span class="lv-age">${sig.age_s.toFixed(0)}s ago</span>`;
+  if (sig.simulated) inner += `<span class="lv-sim">SIM</span>`;
+  if (sig.circuit) inner += `<span class="lv-age">${esc(sig.circuit)}</span>`;
+  return `<div class="${cls}">${inner}</div>`;
+}
+
+async function connectEngine() {
+  const url = document.getElementById('engineUrl').value.replace(/\/$/, '');
+  if (!url) { engineUrl = ''; stopLivePoll(); renderSignals(); return; }
+  engineUrl = url;
+  try {
+    await fetchLiveSignals();
+    setStatus(`Connected to engine at ${url}`, 'ok');
+    startLivePoll();
+  } catch (e) {
+    setStatus(`Engine error: ${e.message}`, 'err');
+    engineUrl = '';
+  }
+}
+
+async function fetchLiveSignals() {
+  const resp = await fetch(engineUrl + '/signals');
+  if (!resp.ok) throw new Error(`${resp.status} ${resp.statusText}`);
+  liveSignals = await resp.json();
+  renderSignals();
+}
+
+function startLivePoll() {
+  stopLivePoll();
+  liveTimer = setInterval(() => {
+    fetchLiveSignals().catch(e => {
+      console.warn('live poll error:', e);
+      setStatus('Engine poll failed — retrying in 5s', 'err');
+    });
+  }, 5000);
+}
+
+function stopLivePoll() {
+  if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
+}
+
+function renderEditOverlay(name, props, idx) {
+  const prefix = getPrefix(name);
+  const info = PREFIXES[prefix] || {};
+
+  let html = `<div class="edit-overlay" id="edit-${idx}">`;
+
+  html += `<div class="edit-row"><label>Period:</label>
+    <input type="text" id="ePeriod-${idx}" value="${esc(String(props.period || ''))}"></div>`;
+  html += `<div class="edit-row"><label>Max age:</label>
+    <input type="text" id="eMaxAge-${idx}" value="${esc(String(props.max_age || ''))}"></div>`;
+  html += `<div class="edit-row"><label>Unit:</label>
+    <select id="eUnit-${idx}"><option value="">(none)</option>${KNOWN_UNITS.map(u =>
+      `<option value="${u}" ${props.unit === u ? 'selected' : ''}>${u}</option>`).join('')}
+    </select></div>`;
+  html += `<div class="edit-row"><label>Scale:</label>
+    <input type="number" step="any" id="eScale-${idx}" value="${props.scale != null ? props.scale : ''}"></div>`;
+
+  if (info.source && props[info.source] !== undefined) {
+    html += `<div class="edit-row"><label>${esc(info.source)}:</label>
+      <input type="text" id="eSrc-${idx}" value="${esc(String(props[info.source]))}"></div>`;
+  }
+  if (props.path !== undefined) {
+    html += `<div class="edit-row"><label>Path:</label>
+      <input type="text" id="ePath-${idx}" value="${esc(props.path)}" style="width:100%"></div>`;
+  }
+
+  html += `<div class="edit-row"><label>Invert:</label>
+    <select id="eInvert-${idx}"><option value="">No</option><option value="true" ${props.invert?'selected':''}>Yes</option></select></div>`;
+  html += `<div class="edit-row"><label>Pending:</label>
+    <select id="ePending-${idx}"><option value="">No</option><option value="true" ${props.pending?'selected':''}>Yes</option></select></div>`;
+
+  html += `<div class="edit-row"><label>Note:</label>
+    <textarea id="eNote-${idx}">${esc(props.note || '')}</textarea></div>`;
+
+  html += `<div style="margin-top:0.5rem; display:flex; gap:0.5rem;">
+    <button class="btn btn-primary" onclick="saveEdit('${esc(name)}', ${idx})">Save</button>
+    <button class="btn" onclick="showYaml('${esc(name)}', ${idx})">Show YAML</button>
+    <button class="btn" onclick="toggleEdit('${esc(name)}', ${idx})">Cancel</button>
+  </div>`;
+
+  html += `<pre id="eYaml-${idx}" style="display:none; margin-top:0.5rem; padding:0.5rem; background:var(--bg); border:1px solid var(--border); border-radius:4px; font-size:0.8rem; white-space:pre-wrap;"></pre>`;
+  html += `</div>`;
+  return html;
+}
+
+// ============================================================================
+// INLINE EDITOR
+// ============================================================================
+function toggleEdit(name, idx) {
+  document.getElementById('edit-' + idx).classList.toggle('open');
+}
+
+function showYaml(name, idx) {
+  const pre = document.getElementById('eYaml-' + idx);
+  pre.style.display = pre.style.display === 'none' ? 'block' : 'none';
+  const obj = {};
+  obj[name] = signalsMap[name];
+  const raw = jsyaml.dump(obj, { lineWidth: 120, noRefs: true, flowLevel: 1 });
+  pre.innerHTML = highlightYaml(raw);
+}
+
+function highlightYaml(text) {
+  return text.split('\n').map(line => {
+    const e = (s) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    if (/^\s*#/.test(line)) return `<span class="y-comment">${e(line)}</span>`;
+    const m = line.match(/^(\s*(?:- )?)([A-Za-z_][A-Za-z0-9_.-]*)(:\s*)(.*)/);
+    if (m) {
+      const [, indent, key, colon, val] = m;
+      let vHtml = e(val);
+      if (/^(true|false)$/i.test(val)) vHtml = `<span class="y-bool">${e(val)}</span>`;
+      else if (/^-?\d+(\.\d+)?$/.test(val)) vHtml = `<span class="y-num">${e(val)}</span>`;
+      else if (/^(ALARM|WARNING|NOTICE|EMERGENCY|LOG|CAUTION)$/.test(val)) vHtml = `<span class="y-sev">${e(val)}</span>`;
+      else if (/^(live|dry_run|auto|manual)$/.test(val)) vHtml = `<span class="y-mode">${e(val)}</span>`;
+      else if (val.startsWith("'") || val.startsWith('"')) vHtml = `<span class="y-str">${e(val)}</span>`;
+      else if (val === '>-' || val === '|') vHtml = `<span class="y-str">${e(val)}</span>`;
+      else if (val) vHtml = `<span class="y-val">${e(val)}</span>`;
+      return `${e(indent)}<span class="y-key">${e(key)}</span>${e(colon)}${vHtml}`;
+    }
+    const lm = line.match(/^(\s*- )(.*)/);
+    if (lm) return `${e(lm[1])}<span class="y-val">${e(lm[2])}</span>`;
+    return e(line);
+  }).join('\n');
+}
+
+function saveEdit(name, idx) {
+  const props = signalsMap[name];
+  const prefix = getPrefix(name);
+  const info = PREFIXES[prefix] || {};
+
+  const period = document.getElementById('ePeriod-' + idx).value.trim();
+  const maxAge = document.getElementById('eMaxAge-' + idx).value.trim();
+  const unit = document.getElementById('eUnit-' + idx).value;
+  const scaleStr = document.getElementById('eScale-' + idx).value;
+  const invert = document.getElementById('eInvert-' + idx).value === 'true';
+  const pending = document.getElementById('ePending-' + idx).value === 'true';
+  const note = document.getElementById('eNote-' + idx).value;
+
+  if (period) props.period = period;
+  else delete props.period;
+  if (maxAge) props.max_age = maxAge;
+  else delete props.max_age;
+  if (unit) props.unit = unit;
+  else delete props.unit;
+  if (scaleStr) props.scale = parseFloat(scaleStr);
+  else delete props.scale;
+
+  if (invert) props.invert = true;
+  else delete props.invert;
+  if (pending) props.pending = true;
+  else delete props.pending;
+
+  props.note = note || undefined;
+  if (!props.note) delete props.note;
+
+  const srcEl = document.getElementById('eSrc-' + idx);
+  if (srcEl && info.source) props[info.source] = srcEl.value;
+
+  const pathEl = document.getElementById('ePath-' + idx);
+  if (pathEl) props.path = pathEl.value;
+
+  setStatus(`Updated ${name}`, 'ok');
+  renderSignals();
+}
+
+// ============================================================================
+// NEW SIGNAL BUILDER
+// ============================================================================
+function toggleBuilder() {
+  document.getElementById('builder').classList.toggle('open');
+  updatePrefixFields();
+}
+
+function updatePrefixFields() {
+  const prefix = document.getElementById('newPrefix').value;
+  const info = PREFIXES[prefix];
+  const c = document.getElementById('prefixFields');
+
+  const defaults = {
+    sk: { period: '1s', maxAge: '5s' },
+    io: { period: '', maxAge: '2s' },
+    cerbo: { period: '5s', maxAge: '120s' },
+    ssm: { period: '5s', maxAge: '180s' },
+    net: { period: '30s', maxAge: '120s' },
+    host: { period: '30s', maxAge: '120s' },
+    cam: { period: '2s', maxAge: '10s' },
+    crew: { period: '30s', maxAge: '120s' },
+    starlink: { period: '30s', maxAge: '90s' },
+    ais: { period: '30s', maxAge: '120s' },
+  };
+
+  const d = defaults[prefix] || {};
+  document.getElementById('newPeriod').value = d.period || '30s';
+  document.getElementById('newMaxAge').value = d.maxAge || '120s';
+
+  let html = '';
+  if (info && info.source) {
+    const labels = {
+      path: 'SignalK path', url: 'URL', file: 'File path', topic: 'MQTT topic',
+      field: 'Modbus field', channel: 'Camera channel', lan: 'LAN IP', dish: 'Dish field', alr: 'ALR field'
+    };
+    html += `<div class="builder-row"><label>${labels[info.source] || info.source}:</label>
+      <input type="text" id="newSrcField" placeholder="required" style="width:300px"></div>`;
+  }
+  if (prefix === 'sk') {
+    html += `<div class="builder-row"><label>Device pin:</label>
+      <input type="text" id="newDevice" placeholder="optional, e.g. n2k.3"></div>`;
+    html += `<div class="builder-row"><label>Part:</label>
+      <input type="text" id="newPart" placeholder="optional sub-key"></div>`;
+  }
+  if (prefix === 'host') {
+    html += `<div class="builder-row"><label>Method:</label>
+      <input type="text" id="newMethod" placeholder="e.g. statvfs, meminfo"></div>`;
+    html += `<div class="builder-row"><label>Stat:</label>
+      <input type="text" id="newStat" placeholder="e.g. used_pct, avail_gb"></div>`;
+  }
+  if (prefix === 'net') {
+    html += `<div class="builder-row"><label>Part:</label>
+      <input type="text" id="newPart" placeholder="JSON key to extract"></div>`;
+  }
+  if (prefix === 'crew') {
+    html += `<div class="builder-row"><label>Window:</label>
+      <input type="text" id="newWindow" placeholder="e.g. 600s (presence window)"></div>`;
+  }
+  c.innerHTML = html;
+}
+
+function buildSignal() {
+  const prefix = document.getElementById('newPrefix').value;
+  const rawName = document.getElementById('newName').value.trim();
+  if (!rawName) { setStatus('Signal name is required', 'err'); return; }
+
+  const fullName = prefix + '.' + rawName;
+  if (signalsMap[fullName]) { setStatus(`Signal ${fullName} already exists`, 'err'); return; }
+
+  const info = PREFIXES[prefix];
+  const sig = {};
+
+  // Source field
+  const srcEl = document.getElementById('newSrcField');
+  if (info && info.source && srcEl) {
+    const sv = srcEl.value.trim();
+    if (sv) sig[info.source] = sv;
+    else if (prefix !== 'io') { setStatus(`${info.source} is required for ${prefix}.* signals`, 'err'); return; }
+  }
+
+  // Prefix-specific fields
+  const deviceEl = document.getElementById('newDevice');
+  if (deviceEl && deviceEl.value.trim()) sig.device = deviceEl.value.trim();
+  const partEl = document.getElementById('newPart');
+  if (partEl && partEl.value.trim()) sig.part = partEl.value.trim();
+  const methodEl = document.getElementById('newMethod');
+  if (methodEl && methodEl.value.trim()) sig.method = methodEl.value.trim();
+  const statEl = document.getElementById('newStat');
+  if (statEl && statEl.value.trim()) sig.stat = statEl.value.trim();
+  const windowEl = document.getElementById('newWindow');
+  if (windowEl && windowEl.value.trim()) sig.window = windowEl.value.trim();
+
+  // Common fields
+  const period = document.getElementById('newPeriod').value.trim();
+  if (period) sig.period = period;
+  const maxAge = document.getElementById('newMaxAge').value.trim();
+  if (maxAge) sig.max_age = maxAge;
+  const unit = document.getElementById('newUnit').value;
+  if (unit) sig.unit = unit;
+  const scale = document.getElementById('newScale').value;
+  if (scale) sig.scale = parseFloat(scale);
+  if (document.getElementById('newInvert').value === 'true') sig.invert = true;
+  if (document.getElementById('newPending').value === 'true') sig.pending = true;
+  const openOQ = document.getElementById('newOpen').value.trim();
+  if (openOQ) sig.open = openOQ;
+  const note = document.getElementById('newNote').value.trim();
+  if (note) sig.note = note;
+
+  const obj = {};
+  obj[fullName] = sig;
+  const yaml = jsyaml.dump(obj, { lineWidth: 120, noRefs: true, flowLevel: 1 });
+  document.getElementById('previewYaml').style.display = 'block';
+  document.getElementById('previewYaml').textContent = yaml;
+
+  document.getElementById('addBtn').classList.remove('hidden');
+  document.getElementById('addBtn').onclick = () => {
+    signalsMap[fullName] = sig;
+    setStatus(`Added ${fullName} to catalog`, 'ok');
+    document.getElementById('builder').classList.remove('open');
+    document.getElementById('previewYaml').style.display = 'none';
+    document.getElementById('addBtn').classList.add('hidden');
+    populatePrefixFilter();
+    renderStats();
+    renderSignals();
+  };
+  setStatus(`Preview of ${fullName} — review before adding`, 'ok');
+}
+
+// ============================================================================
+// SAVE / DOWNLOAD
+// ============================================================================
+function generateYaml() {
+  const signalsObj = { signals: signalsMap };
+  if (historyRules.length) signalsObj.history = historyRules;
+  const body = jsyaml.dump(signalsObj, { lineWidth: 120, noRefs: true, flowLevel: 1, quotingType: '"' });
+  return rawHeader + body;
+}
+
+async function saveAll() {
+  const yaml = generateYaml();
+
+  if (isFileProtocol) {
+    downloadYaml(yaml);
+    return;
+  }
+
+  try {
+    const resp = await fetch(dataPath + '/signals.yml', { method: 'PUT', body: yaml,
+      headers: { 'Content-Type': 'text/yaml' } });
+    if (resp.ok) {
+      setStatus('Saved signals.yml via PUT', 'ok');
+    } else {
+      downloadYaml(yaml);
+    }
+  } catch {
+    downloadYaml(yaml);
+  }
+}
+
+function downloadYaml(yaml) {
+  const blob = new Blob([yaml], { type: 'text/yaml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'signals.yml';
+  a.click();
+  URL.revokeObjectURL(url);
+  setStatus('Downloaded signals.yml — replace the file in data/', 'ok');
+}
+
+// ============================================================================
+// UTILS
+// ============================================================================
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function setStatus(msg, type) {
+  const el = document.getElementById('statusMsg');
+  el.className = 'status-' + type;
+  el.textContent = msg;
+}
+
+// Live filtering
+document.getElementById('filterPrefix').addEventListener('change', renderSignals);
+document.getElementById('filterState').addEventListener('change', renderSignals);
+document.getElementById('searchBox').addEventListener('input', renderSignals);
+
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.key === 'f') {
+    e.preventDefault();
+    document.getElementById('searchBox').focus();
+  }
+});
+
+// ============================================================================
+// DEPLOY
+// ============================================================================
+function startDeploy() {
+  const overlay = document.getElementById('deployOverlay');
+  const steps = document.getElementById('deploySteps');
+  overlay.classList.add('active');
+  steps.innerHTML = '<div class="step-wait">Generating YAML…</div>';
+
+  const yaml = generateYaml();
+  const count = Object.keys(signalsMap).length;
+  steps.innerHTML = `<div class="step-ok">Generated YAML (${count} signals)</div>`
+    + '<div class="step-wait">Sending to deploy API…</div>';
+
+  const deployBase = location.origin + '/deploy';
+  fetch(deployBase + '/api/deploy/signals', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({content: yaml, message: `Signals editor deploy (${count} signals)`})
+  })
+  .then(r => r.json().then(data => ({status: r.status, data})))
+  .then(({status, data}) => {
+    let html = `<div class="step-ok">Generated YAML (${count} signals)</div>`;
+    for (const s of (data.steps || [])) {
+      const cls = s.ok ? 'step-ok' : 'step-fail';
+      html += `<div class="${cls}">${s.step}: ${s.message}</div>`;
+    }
+    if (data.ok) {
+      html += '<div class="step-ok" style="margin-top:0.5rem;font-weight:600">Deploy complete</div>';
+      if (data.restart_needed)
+        html += '<div style="color:var(--yellow)">Restart the rules-engine container to apply signal changes</div>';
+      setStatus('Deployed successfully' + (data.restart_needed ? ' — restart needed' : ''), 'ok');
+    } else {
+      html += '<div class="step-fail" style="margin-top:0.5rem;font-weight:600">Deploy failed</div>';
+      if (data.hint) html += `<div style="color:var(--yellow);margin-top:0.5rem">${data.hint}</div>`;
+      setStatus('Deploy failed — see overlay', 'err');
+    }
+    steps.innerHTML = html;
+  })
+  .catch(err => {
+    steps.innerHTML = `<div class="step-ok">Generated YAML</div>`
+      + `<div class="step-fail">Network error: ${err.message}</div>`
+      + '<div style="color:var(--yellow);margin-top:0.5rem">Is the deploy API running?</div>';
+    setStatus('Deploy failed — network error', 'err');
+  });
+}
+
+function closeDeploy() {
+  document.getElementById('deployOverlay').classList.remove('active');
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  if (isFileProtocol) {
+    document.getElementById('filePicker').classList.remove('hidden');
+    setStatus('Opened from filesystem — pick signals.yml above and click Load File', 'msg');
+  } else {
+    setStatus('Click Load to open data files, or adjust the data path first', 'msg');
+  }
+});
+</script>
+</body>
+</html>
